@@ -35,13 +35,13 @@ First-run iOS build: open `ios/Runner.xcworkspace` in Xcode if you need to pick 
 ## Demo path
 
 1. **Import a PDF** — Library → **Import PDF** (Files picker). The file is copied into the app Documents sandbox (`…/Documents/library/`).
-2. Open the PDF. **Double-tap** the page: the note is placed at the **first** tap of that double-tap. A small square marker appears.
+2. Open the PDF. **Double-tap** the page: the note is placed at the **first** tap of that double-tap (the pairing window and slop match Flutter’s double-tap recogniser). Marker taps and cancelled pans are ignored. If the first tap cannot be determined, Shelf does **not** fall back to the second tap — try the double-tap again. A small square marker appears.
 3. **Dictate** (microphone) or type. On a physical iPhone, speech-to-text runs with British English. After dictation, filler words (`um`, `uh`, `like`, …) are stripped automatically; **Clean up filler** does the same pass by hand.
 4. New notes start on the **orange** colour label (“General note”). Change the colour in the editor if you like.
 5. **Show / hide markers** from the top chrome (eye icon) — outside the PDF, so it does not steal page gestures.
 6. Tap a marker to reopen the note. Markers use the label colour.
 7. Bottom bar: previous / next page, and the unfold control to **jump to a page number** or a **chapter** if the PDF has a table of contents.
-8. **Notes** tab: keyword search, filter by colour label, tap a row to open that PDF on that page and focus the marker.
+8. **Notes** tab: keyword search, filter by colour label, tap a row to open that PDF on that page. The reader waits until the viewer is ready, jumps to the page, brings the marker into view, then opens the editor — no fixed delay.
 9. **Settings**: edit the seeded labels (orange = general note, purple = further research), add your own colours and meanings. They persist with the local library.
 
 ## What’s stubbed / limited
@@ -70,4 +70,4 @@ flutter analyze
 flutter test
 ```
 
-Unit tests cover filler cleanup and the note / colour-label persistence model (`toMap` / `fromMap`, default orange seed, coordinate clamping).
+Unit tests cover filler cleanup, the note / colour-label persistence model (`toMap` / `fromMap`, default orange seed, coordinate clamping), `FirstTapTracker` (first vs second tap, slop/window, clear-on-consume), and the notes-hub open sequence.
