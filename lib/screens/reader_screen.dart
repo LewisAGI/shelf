@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -5,6 +7,7 @@ import '../data/shelf_store.dart';
 import '../models/library_document.dart';
 import '../models/note.dart';
 import '../services/first_tap_tracker.dart';
+import '../services/note_open_sequence.dart';
 import '../services/speech_capture.dart';
 import '../theme/shelf_theme.dart';
 import '../widgets/note_editor.dart';
@@ -40,6 +43,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   List<PdfOutlineNode> _outline = const [];
   String? _focusedNoteId;
   bool _ready = false;
+  final Completer<void> _viewerReady = Completer<void>();
 
   @override
   void initState() {
@@ -48,21 +52,116 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _pageCount = widget.document.pageCount ?? 1;
     _focusedNoteId = widget.focusNoteId;
     if (widget.focusNoteId != null) {
-      _openNoteLater(widget.focusNoteId!);
+      unawaited(_openFocusedNote(widget.focusNoteId!));
     }
   }
 
-  Future<void> _openNoteLater(String noteId) async {
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    if (!mounted) {
-      return;
+  @override
+  void dispose() {
+    if (!_viewerReady.isCompleted) {
+      _viewerReady.complete();
     }
-    final note = widget.store.notes.cast<Note?>().firstWhere(
+    super.dispose();
+  }
+
+  Note? _noteById(String noteId) {
+    return widget.store.notes.cast<Note?>().firstWhere(
       (item) => item?.id == noteId,
       orElse: () => null,
     );
-    if (note != null) {
-      await _editNote(note);
+  }
+
+  /// Notes hub → reader: ready, then page, then marker, then editor.
+  /// No fixed delay; the second tap is never used as a stand-in.
+  Future<void> _openFocusedNote(String noteId) async {
+    final targetPage = widget.initialPage ?? _noteById(noteId)?.page ?? _page;
+    try {
+      await NoteOpenSequence.run(
+        waitUntilReady: () => _viewerReady.future,
+        page: targetPage,
+        goToPage: _goPage,
+        waitUntilPageCurrent: () => _waitUntilPage(targetPage),
+        ensureMarkerVisible: () async {
+          final note = _noteById(noteId);
+          if (note == null || !mounted) {
+            return;
+          }
+          setState(() => _focusedNoteId = note.id);
+          await _ensureMarkerVisible(note);
+        },
+        openNote: () async {
+          final note = _noteById(noteId);
+          if (note != null && mounted) {
+            await _editNote(note);
+          }
+        },
+        isActive: () => mounted,
+      );
+    } on Object {
+      // Viewer never became ready, or the route was popped.
+    }
+  }
+
+  Future<void> _waitUntilPage(int page) async {
+    if ((_controller.pageNumber ?? _page) == page) {
+      if (mounted && _page != page) {
+        setState(() => _page = page);
+      }
+      if (mounted) {
+        await WidgetsBinding.instance.endOfFrame;
+      }
+      return;
+    }
+    final done = Completer<void>();
+    void tick() {
+      if ((_controller.pageNumber ?? _page) == page && !done.isCompleted) {
+        done.complete();
+      }
+    }
+
+    _controller.addListener(tick);
+    tick();
+    try {
+      await done.future.timeout(
+        const Duration(seconds: 2),
+        onTimeout: () {},
+      );
+    } finally {
+      _controller.removeListener(tick);
+    }
+    if (mounted && (_controller.pageNumber ?? _page) == page && _page != page) {
+      setState(() => _page = page);
+    }
+    if (mounted) {
+      await WidgetsBinding.instance.endOfFrame;
+    }
+  }
+
+  Future<void> _ensureMarkerVisible(Note note) async {
+    if (!_controller.isReady) {
+      return;
+    }
+    try {
+      final page = _controller.pages.cast<PdfPage?>().firstWhere(
+        (item) => item?.pageNumber == note.page,
+        orElse: () => null,
+      );
+      if (page == null || page.width == 0 || page.height == 0) {
+        return;
+      }
+      final bounds = markerPdfBounds(
+        note: note,
+        pageWidth: page.width,
+        pageHeight: page.height,
+      );
+      final rect = _controller.calcRectForRectInsidePage(
+        pageNumber: note.page,
+        rect: PdfRect(bounds.left, bounds.top, bounds.right, bounds.bottom),
+      );
+      await _controller.ensureVisible(rect, margin: 32);
+    } on Object {
+      // Page camera APIs can fail before layout; the editor still opens
+      // once the page is current.
     }
   }
 
@@ -78,10 +177,70 @@ class _ReaderScreenState extends State<ReaderScreen> {
       _page = controller.pageNumber ?? _page;
     });
     await widget.store.updatePageCount(widget.document.id, document.pages.length);
+    if (!_viewerReady.isCompleted) {
+      _viewerReady.complete();
+    }
+    // Notes-hub focus owns goToPage so it cannot race the editor.
+    if (widget.focusNoteId != null) {
+      return;
+    }
     final target = widget.initialPage;
     if (target != null && target >= 1) {
       await controller.goToPage(pageNumber: target);
     }
+  }
+
+  bool _pointerHitsMarker(Offset globalPosition) {
+    if (!_controller.isReady) {
+      return false;
+    }
+    final local = _controller.globalToLocal(globalPosition);
+    if (local == null) {
+      return false;
+    }
+    final hit = _controller.getPdfPageHitTestResult(
+      local,
+      useDocumentLayoutCoordinates: false,
+    );
+    if (hit == null || hit.page.width == 0 || hit.page.height == 0) {
+      return false;
+    }
+    Size pageSizeInView;
+    try {
+      final layouts = _controller.layout.pageLayouts;
+      final index = hit.page.pageNumber - 1;
+      if (index < 0 || index >= layouts.length) {
+        return false;
+      }
+      pageSizeInView = layouts[index].size;
+    } on Object {
+      return false;
+    }
+    final normalised = Offset(
+      hit.offset.x / hit.page.width,
+      1 - (hit.offset.y / hit.page.height),
+    );
+    for (final note in widget.store.notesOnPage(
+      widget.document.id,
+      hit.page.pageNumber,
+    )) {
+      if (noteMarkerContains(
+        note: note,
+        normalisedTap: normalised,
+        pageSizeInView: pageSizeInView,
+      )) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _onPagePointerDown(PointerDownEvent event) {
+    if (_pointerHitsMarker(event.position)) {
+      _taps.abortPending();
+      return;
+    }
+    _taps.recordDown(event.position);
   }
 
   Future<void> _createNoteAt(Offset globalPosition) async {
@@ -131,6 +290,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (mounted) {
       setState(() => _focusedNoteId = note.id);
     }
+    _taps.clear();
   }
 
   Future<void> _editNote(Note note) async {
@@ -162,12 +322,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Future<void> _goPage(int page) async {
-    if (!_controller.isReady) {
+    if (!_controller.isReady || !mounted) {
       return;
     }
     final clamped = page.clamp(1, _pageCount);
     await _controller.goToPage(pageNumber: clamped);
-    setState(() => _page = clamped);
+    if (mounted) {
+      setState(() => _page = clamped);
+    }
   }
 
   void _showJump() {
@@ -205,7 +367,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
         listenable: widget.store,
         builder: (context, _) {
           return Listener(
-            onPointerDown: (event) => _taps.recordDown(event.position),
+            onPointerDown: _onPagePointerDown,
+            onPointerMove: (event) => _taps.recordMove(event.position),
+            onPointerCancel: (_) => _taps.abortPending(),
             child: FutureBuilder<String>(
               future: widget.store.pdfPath(widget.document),
               builder: (context, snapshot) {
@@ -241,6 +405,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                             height: 22,
                             child: PdfOverlayInteractionRegion(
                               onTap: (_) {
+                                _taps.clear();
                                 _editNote(note);
                                 return true;
                               },
@@ -257,11 +422,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     viewerOverlayBuilder: (context, size, handleLinkTap) {
                       return [
                         PdfOverlayInteractionRegion(
-                          onDoubleTap: (details) {
-                            final first = _taps.consumeFirstOr(
-                              details.globalPosition,
-                            );
-                            _createNoteAt(first);
+                          onDoubleTap: (_) {
+                            final first = _taps.consumeFirst();
+                            // Fail closed: never place a note on the second
+                            // tap when the first of the pair is unknown.
+                            if (first != null) {
+                              unawaited(_createNoteAt(first));
+                            }
                             return true;
                           },
                           child: SizedBox(
