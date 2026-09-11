@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shelf/models/color_label.dart';
 import 'package:shelf/models/note.dart';

@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/gestures.dart';
 
 /// Remembers the first tap of a double-tap so a note sits there,
