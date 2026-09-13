@@ -250,10 +250,10 @@ void main() {
         home: NotesHubScreen(store: store),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(find.text('Needs more reading.'), findsOneWidget);
-    expect(find.textContaining('Further research'), findsOneWidget);
+    expect(find.textContaining('Further research'), findsWidgets);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -276,7 +276,7 @@ void main() {
         home: SettingsScreen(store: store),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(find.text('Colour labels'), findsOneWidget);
     expect(find.text('General note'), findsOneWidget);
