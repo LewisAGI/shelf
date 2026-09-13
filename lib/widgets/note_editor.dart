@@ -85,8 +85,8 @@ class NoteEditor extends StatefulWidget {
 class _NoteEditorState extends State<NoteEditor> {
   late final TextEditingController _controller;
   late String _labelId;
-  late double _x;
-  late double _y;
+  late final double _x;
+  late final double _y;
   bool _listening = false;
   String? _status;
 
@@ -223,15 +223,17 @@ class _NoteEditorState extends State<NoteEditor> {
               Expanded(
                 child: Text(
                   widget.note == null ? 'New note' : 'Note',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
                 ),
               ),
               if (page != null)
                 Text(
                   'Page $page',
-                  style: const TextStyle(color: ShelfColors.muted, fontSize: 13),
+                  style: const TextStyle(
+                    color: ShelfColors.muted,
+                    fontSize: 13,
+                  ),
                 ),
             ],
           ),
@@ -253,19 +255,6 @@ class _NoteEditorState extends State<NoteEditor> {
             ),
           ],
           const SizedBox(height: 8),
-          _PositionSlider(
-            key: const Key('note-position-x'),
-            label: 'X',
-            value: _x,
-            onChanged: (value) => setState(() => _x = value),
-          ),
-          _PositionSlider(
-            key: const Key('note-position-y'),
-            label: 'Y',
-            value: _y,
-            onChanged: (value) => setState(() => _y = value),
-          ),
-          const SizedBox(height: 4),
           Row(
             children: [
               Flexible(
@@ -281,14 +270,8 @@ class _NoteEditorState extends State<NoteEditor> {
                 ),
               ),
               if (widget.note != null)
-                TextButton(
-                  onPressed: _delete,
-                  child: const Text('Delete'),
-                ),
-              FilledButton(
-                onPressed: _save,
-                child: const Text('Save'),
-              ),
+                TextButton(onPressed: _delete, child: const Text('Delete')),
+              FilledButton(onPressed: _save, child: const Text('Save')),
             ],
           ),
         ],
@@ -415,52 +398,6 @@ class _MicButton extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _PositionSlider extends StatelessWidget {
-  const _PositionSlider({
-    super.key,
-    required this.label,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String label;
-  final double value;
-  final ValueChanged<double> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 18,
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-              color: ShelfColors.muted,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Slider(
-            value: value,
-            onChanged: onChanged,
-          ),
-        ),
-        SizedBox(
-          width: 40,
-          child: Text(
-            value.toStringAsFixed(2),
-            textAlign: TextAlign.end,
-            style: const TextStyle(fontSize: 12, color: ShelfColors.muted),
-          ),
-        ),
-      ],
     );
   }
 }

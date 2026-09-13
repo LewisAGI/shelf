@@ -33,10 +33,7 @@ void main() {
   }
 
   setUp(() async {
-    db = ShelfDatabase(
-      factory: databaseFactoryFfi,
-      path: inMemoryDatabasePath,
-    );
+    db = ShelfDatabase(factory: databaseFactoryFfi, path: inMemoryDatabasePath);
     await seedDocument();
     store = ShelfStore(database: db);
     await store.init();
@@ -75,9 +72,7 @@ void main() {
       );
       expect(created.colorLabelId, ColorLabel.purpleId);
 
-      await store.saveNote(
-        created.copyWith(colorLabelId: ColorLabel.orangeId),
-      );
+      await store.saveNote(created.copyWith(colorLabelId: ColorLabel.orangeId));
       expect(store.notes.single.colorLabelId, ColorLabel.orangeId);
 
       await store.saveNote(
@@ -175,10 +170,12 @@ void main() {
       await pumpEditor(tester);
 
       final square = tester.widget<Material>(
-        find.ancestor(
-          of: find.byKey(const Key('note-composer-colour')),
-          matching: find.byType(Material),
-        ).first,
+        find
+            .ancestor(
+              of: find.byKey(const Key('note-composer-colour')),
+              matching: find.byType(Material),
+            )
+            .first,
       );
       expect(square.color, ColorLabel.seedDefaults().first.color);
       expect(square.color, ShelfColors.orange);
@@ -187,8 +184,14 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
-      expect(find.byKey(Key('note-label-${ColorLabel.orangeId}')), findsOneWidget);
-      expect(find.byKey(Key('note-label-${ColorLabel.purpleId}')), findsOneWidget);
+      expect(
+        find.byKey(Key('note-label-${ColorLabel.orangeId}')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(Key('note-label-${ColorLabel.purpleId}')),
+        findsOneWidget,
+      );
       expect(find.text('General note'), findsWidgets);
       expect(find.text('Further research'), findsWidgets);
 
@@ -197,21 +200,24 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
 
       final updated = tester.widget<Material>(
-        find.ancestor(
-          of: find.byKey(const Key('note-composer-colour')),
-          matching: find.byType(Material),
-        ).first,
+        find
+            .ancestor(
+              of: find.byKey(const Key('note-composer-colour')),
+              matching: find.byType(Material),
+            )
+            .first,
       );
       expect(updated.color, ColorLabel.parseHex(ShelfColors.defaultPurpleHex));
     });
 
-    testWidgets('X/Y sliders start at the press position', (tester) async {
+    testWidgets('composer has no X/Y position sliders', (tester) async {
       await pumpEditor(tester, x: 0.25, y: 0.8);
 
-      expect(find.byKey(const Key('note-position-x')), findsOneWidget);
-      expect(find.byKey(const Key('note-position-y')), findsOneWidget);
-      expect(find.text('0.25'), findsOneWidget);
-      expect(find.text('0.80'), findsOneWidget);
+      expect(find.byKey(const Key('note-position-x')), findsNothing);
+      expect(find.byKey(const Key('note-position-y')), findsNothing);
+      expect(find.byType(Slider), findsNothing);
+      expect(find.text('0.25'), findsNothing);
+      expect(find.text('0.80'), findsNothing);
     });
 
     testWidgets('saving from the sheet returns the assigned label', (
@@ -312,12 +318,17 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
 
       final square = tester.widget<Material>(
-        find.ancestor(
-          of: find.byKey(const Key('note-composer-colour')),
-          matching: find.byType(Material),
-        ).first,
+        find
+            .ancestor(
+              of: find.byKey(const Key('note-composer-colour')),
+              matching: find.byType(Material),
+            )
+            .first,
       );
       expect(square.color, ColorLabel.parseHex(ShelfColors.defaultPurpleHex));
+      expect(find.byType(Slider), findsNothing);
+      expect(find.byKey(const Key('note-position-x')), findsNothing);
+      expect(find.byKey(const Key('note-position-y')), findsNothing);
 
       await tester.tap(find.byKey(const Key('note-composer-colour')));
       await tester.pump();
@@ -336,84 +347,80 @@ void main() {
       expect(result!.y, 0.3);
     });
 
-    testWidgets('long-press create path opens typeable pill and saves position', (
-      tester,
-    ) async {
-      NoteEditorResult? result;
+    testWidgets(
+      'long-press create path opens typeable pill and keeps press position',
+      (tester) async {
+        NoteEditorResult? result;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: ShelfTheme.light(),
-          home: Builder(
-            builder: (context) {
-              return GestureDetector(
-                key: const Key('reader-long-press-target'),
-                onLongPress: () {
-                  NoteEditor.show(
-                    context,
-                    labels: ColorLabel.seedDefaults(),
-                    defaultLabelId: ColorLabel.orangeId,
-                    speech: SpeechCapture(),
-                    page: 3,
-                    x: 0.41,
-                    y: 0.63,
-                  ).then((value) => result = value);
-                },
-                child: const SizedBox.expand(
-                  child: ColoredBox(
-                    color: Color(0xFFF5F5F4),
-                    child: Center(child: Text('PDF page')),
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ShelfTheme.light(),
+            home: Builder(
+              builder: (context) {
+                return GestureDetector(
+                  key: const Key('reader-long-press-target'),
+                  onLongPress: () {
+                    NoteEditor.show(
+                      context,
+                      labels: ColorLabel.seedDefaults(),
+                      defaultLabelId: ColorLabel.orangeId,
+                      speech: SpeechCapture(),
+                      page: 3,
+                      x: 0.41,
+                      y: 0.63,
+                    ).then((value) => result = value);
+                  },
+                  child: const SizedBox.expand(
+                    child: ColoredBox(
+                      color: Color(0xFFF5F5F4),
+                      child: Center(child: Text('PDF page')),
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
-        ),
-      );
+        );
 
-      await tester.longPress(find.byKey(const Key('reader-long-press-target')));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
+        await tester.longPress(
+          find.byKey(const Key('reader-long-press-target')),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
 
-      // Comment path (after the page menu) still opens the Grok pill.
-      expect(find.byKey(const Key('note-composer-pill')), findsOneWidget);
-      expect(find.byKey(const Key('note-composer-field')), findsOneWidget);
-      expect(find.byKey(const Key('note-composer-mic')), findsOneWidget);
-      expect(find.byKey(const Key('note-composer-colour')), findsOneWidget);
-      expect(find.text('Leave a comment'), findsOneWidget);
-      expect(find.text('0.41'), findsOneWidget);
-      expect(find.text('0.63'), findsOneWidget);
+        // Comment path (after the page menu) still opens the Grok pill.
+        expect(find.byKey(const Key('note-composer-pill')), findsOneWidget);
+        expect(find.byKey(const Key('note-composer-field')), findsOneWidget);
+        expect(find.byKey(const Key('note-composer-mic')), findsOneWidget);
+        expect(find.byKey(const Key('note-composer-colour')), findsOneWidget);
+        expect(find.text('Leave a comment'), findsOneWidget);
+        expect(find.byType(Slider), findsNothing);
+        expect(find.byKey(const Key('note-position-x')), findsNothing);
+        expect(find.byKey(const Key('note-position-y')), findsNothing);
 
-      await tester.enterText(
-        find.byKey(const Key('note-composer-field')),
-        'Long-press note.',
-      );
-      await tester.pump();
+        await tester.enterText(
+          find.byKey(const Key('note-composer-field')),
+          'Long-press note.',
+        );
+        await tester.pump();
 
-      final xSlider = find.descendant(
-        of: find.byKey(const Key('note-position-x')),
-        matching: find.byType(Slider),
-      );
-      await tester.drag(xSlider, const Offset(80, 0));
-      await tester.pump();
+        await tester.tap(find.byKey(const Key('note-composer-colour')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.tap(find.byKey(Key('note-label-${ColorLabel.purpleId}')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.tap(find.text('Save'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
 
-      await tester.tap(find.byKey(const Key('note-composer-colour')));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
-      await tester.tap(find.byKey(Key('note-label-${ColorLabel.purpleId}')));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
-      await tester.tap(find.text('Save'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
-
-      expect(result, isNotNull);
-      expect(result!.text, 'Long-press note.');
-      expect(result!.colorLabelId, ColorLabel.purpleId);
-      expect(result!.y, closeTo(0.63, 0.001));
-      expect(result!.x, isNot(equals(0.41)));
-      expect(result!.x, inInclusiveRange(0.0, 1.0));
-    });
+        expect(result, isNotNull);
+        expect(result!.text, 'Long-press note.');
+        expect(result!.colorLabelId, ColorLabel.purpleId);
+        expect(result!.x, closeTo(0.41, 0.001));
+        expect(result!.y, closeTo(0.63, 0.001));
+      },
+    );
   });
 
   test('notes list data and marker colour follow the assigned label', () async {
@@ -428,7 +435,10 @@ void main() {
     final listed = store.searchNotes();
     expect(listed, hasLength(1));
     expect(listed.single.colorLabelId, ColorLabel.purpleId);
-    expect(store.labelById(listed.single.colorLabelId).name, 'Further research');
+    expect(
+      store.labelById(listed.single.colorLabelId).name,
+      'Further research',
+    );
   });
 
   testWidgets('marker paints the assigned label colour', (tester) async {
@@ -436,9 +446,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: ShelfTheme.light(),
-        home: Scaffold(
-          body: NoteMarker(color: label.color, focused: true),
-        ),
+        home: Scaffold(body: NoteMarker(color: label.color, focused: true)),
       ),
     );
     await tester.pump();

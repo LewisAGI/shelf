@@ -3,7 +3,7 @@ import 'note.dart';
 /// Quoted PDF text and its page-local bounds for a selection-anchored note.
 ///
 /// Coordinates are normalised 0–1 with origin top-left, matching [Note.x]/[Note.y].
-/// Bounds come from the PDF selection (not only the free marker sliders).
+/// Bounds come from the PDF selection (not a free-position marker).
 class NoteSelection {
   const NoteSelection({
     required this.text,
@@ -19,7 +19,7 @@ class NoteSelection {
   final double right;
   final double bottom;
 
-  /// Marker sits on the selection centre unless the composer sliders move it.
+  /// Marker sits on the selection centre.
   double get anchorX => Note.normalizeCoord((left + right) / 2);
 
   double get anchorY => Note.normalizeCoord((top + bottom) / 2);
@@ -38,13 +38,7 @@ class NoteSelection {
     required double pageHeight,
   }) {
     if (pageWidth <= 0 || pageHeight <= 0) {
-      return NoteSelection(
-        text: text,
-        left: 0,
-        top: 0,
-        right: 0,
-        bottom: 0,
-      );
+      return NoteSelection(text: text, left: 0, top: 0, right: 0, bottom: 0);
     }
     final left = Note.normalizeCoord(pdfLeft / pageWidth);
     final right = Note.normalizeCoord(pdfRight / pageWidth);

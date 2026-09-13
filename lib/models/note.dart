@@ -31,7 +31,7 @@ class Note {
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  /// When set, the note is anchored to a PDF word/selection, not only X/Y.
+  /// When set, the note is anchored to a PDF word/selection, not only a tap point.
   final NoteSelection? selection;
 
   bool get isSelectionAnchored => selection != null;
