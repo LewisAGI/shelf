@@ -82,7 +82,7 @@ class _NotesHubScreenState extends State<NotesHubScreen> {
                         child: Padding(
                           padding: EdgeInsets.all(32),
                           child: Text(
-                            'No notes match. Long-press a page in the reader to add one.',
+                            'No notes match. Long-press a page, then Comment or Select text.',
                             textAlign: TextAlign.center,
                             style: TextStyle(color: ShelfColors.muted),
                           ),

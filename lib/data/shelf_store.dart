@@ -8,6 +8,7 @@ import 'package:pdfrx/pdfrx.dart';
 import '../models/color_label.dart';
 import '../models/library_document.dart';
 import '../models/note.dart';
+import '../models/note_selection.dart';
 import 'shelf_database.dart';
 
 class ShelfStore extends ChangeNotifier {
@@ -82,6 +83,7 @@ class ShelfStore extends ChangeNotifier {
       final label = labelById(note.colorLabelId);
       final haystack = [
         note.text,
+        note.selection?.text ?? '',
         document?.title ?? '',
         label.name,
         label.meaning,
@@ -175,6 +177,7 @@ class ShelfStore extends ChangeNotifier {
     required double y,
     String text = '',
     String? colorLabelId,
+    NoteSelection? selection,
   }) async {
     final now = DateTime.now();
     final note = Note(
@@ -187,6 +190,7 @@ class ShelfStore extends ChangeNotifier {
       colorLabelId: colorLabelId ?? defaultLabel.id,
       createdAt: now,
       updatedAt: now,
+      selection: selection,
     );
     await _db.upsertNote(note);
     notes.insert(0, note);
