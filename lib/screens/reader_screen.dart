@@ -38,6 +38,7 @@ class ReaderScreen extends StatefulWidget {
 class _ReaderScreenState extends State<ReaderScreen> {
   final _controller = PdfViewerController();
   final _speech = SpeechCapture();
+  late final Future<String> _pdfPath = widget.store.pdfPath(widget.document);
 
   bool _showMarkers = true;
   int _page = 1;
@@ -536,7 +537,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         listenable: widget.store,
         builder: (context, _) {
           return FutureBuilder<String>(
-            future: widget.store.pdfPath(widget.document),
+            future: _pdfPath,
             builder: (context, snapshot) {
               final path = snapshot.data;
               if (path == null) {
