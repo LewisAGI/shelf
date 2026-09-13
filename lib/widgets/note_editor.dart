@@ -11,11 +11,15 @@ class NoteEditorResult {
   const NoteEditorResult({
     required this.text,
     required this.colorLabelId,
+    required this.x,
+    required this.y,
     this.delete = false,
   });
 
   final String text;
   final String colorLabelId;
+  final double x;
+  final double y;
   final bool delete;
 }
 
@@ -27,6 +31,8 @@ class NoteEditor extends StatefulWidget {
     required this.speech,
     this.note,
     this.page,
+    this.x,
+    this.y,
     this.voiceHint,
   });
 
@@ -35,7 +41,11 @@ class NoteEditor extends StatefulWidget {
   final SpeechCapture speech;
   final Note? note;
   final int? page;
+  final double? x;
+  final double? y;
   final String? voiceHint;
+
+  static const int composerMaxLines = 4;
 
   static Future<NoteEditorResult?> show(
     BuildContext context, {
@@ -44,11 +54,14 @@ class NoteEditor extends StatefulWidget {
     required SpeechCapture speech,
     Note? note,
     int? page,
+    double? x,
+    double? y,
     String? voiceHint,
   }) {
     return showModalBottomSheet<NoteEditorResult>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: ShelfColors.white,
       builder: (context) {
         return NoteEditor(
@@ -57,6 +70,8 @@ class NoteEditor extends StatefulWidget {
           speech: speech,
           note: note,
           page: page,
+          x: x,
+          y: y,
           voiceHint: voiceHint,
         );
       },
@@ -70,6 +85,8 @@ class NoteEditor extends StatefulWidget {
 class _NoteEditorState extends State<NoteEditor> {
   late final TextEditingController _controller;
   late String _labelId;
+  late double _x;
+  late double _y;
   bool _listening = false;
   String? _status;
 
@@ -78,6 +95,8 @@ class _NoteEditorState extends State<NoteEditor> {
     super.initState();
     _controller = TextEditingController(text: widget.note?.text ?? '');
     _labelId = widget.note?.colorLabelId ?? widget.defaultLabelId;
+    _x = Note.normalizeCoord(widget.note?.x ?? widget.x ?? 0.5);
+    _y = Note.normalizeCoord(widget.note?.y ?? widget.y ?? 0.5);
     _status = widget.voiceHint;
   }
 
@@ -167,6 +186,8 @@ class _NoteEditorState extends State<NoteEditor> {
       NoteEditorResult(
         text: _controller.text.trim(),
         colorLabelId: _labelId,
+        x: Note.normalizeCoord(_x),
+        y: Note.normalizeCoord(_y),
       ),
     );
   }
@@ -176,6 +197,8 @@ class _NoteEditorState extends State<NoteEditor> {
       NoteEditorResult(
         text: _controller.text,
         colorLabelId: _labelId,
+        x: Note.normalizeCoord(_x),
+        y: Note.normalizeCoord(_y),
         delete: true,
       ),
     );
@@ -213,16 +236,14 @@ class _NoteEditorState extends State<NoteEditor> {
             ],
           ),
           const SizedBox(height: 10),
-          NoteLabelPicker(
-            labels: widget.labels,
-            selectedId: _labelId,
-            onSelected: (id) => setState(() => _labelId = id),
-          ),
-          const SizedBox(height: 10),
           _ChatComposer(
             controller: _controller,
             listening: _listening,
+            autofocus: widget.note == null,
+            labels: widget.labels,
+            labelId: _labelId,
             onMic: _toggleListen,
+            onLabel: (id) => setState(() => _labelId = id),
           ),
           if (_status != null) ...[
             const SizedBox(height: 6),
@@ -232,6 +253,19 @@ class _NoteEditorState extends State<NoteEditor> {
             ),
           ],
           const SizedBox(height: 8),
+          _PositionSlider(
+            key: const Key('note-position-x'),
+            label: 'X',
+            value: _x,
+            onChanged: (value) => setState(() => _x = value),
+          ),
+          _PositionSlider(
+            key: const Key('note-position-y'),
+            label: 'Y',
+            value: _y,
+            onChanged: (value) => setState(() => _y = value),
+          ),
+          const SizedBox(height: 4),
           Row(
             children: [
               TextButton(
@@ -256,31 +290,40 @@ class _NoteEditorState extends State<NoteEditor> {
   }
 }
 
-/// Grok-style chat composer: compact rounded field, mic in the corner.
+/// Grok phone-chat pill: dark capsule, typeable field, mic circle, colour square.
 class _ChatComposer extends StatelessWidget {
   const _ChatComposer({
     required this.controller,
     required this.listening,
+    required this.autofocus,
+    required this.labels,
+    required this.labelId,
     required this.onMic,
+    required this.onLabel,
   });
 
   final TextEditingController controller;
   final bool listening;
+  final bool autofocus;
+  final List<ColorLabel> labels;
+  final String labelId;
   final VoidCallback onMic;
+  final ValueChanged<String> onLabel;
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
+      key: const Key('note-composer-pill'),
       decoration: BoxDecoration(
-        color: const Color(0xFFFAFAF9),
-        borderRadius: BorderRadius.circular(22),
+        color: ShelfColors.composerPill,
+        borderRadius: BorderRadius.circular(26),
         border: Border.all(
-          color: listening ? ShelfColors.orange : ShelfColors.hairline,
+          color: listening ? ShelfColors.orange : const Color(0xFF2C2C2E),
           width: listening ? 1.5 : 1,
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+        padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
@@ -288,24 +331,48 @@ class _ChatComposer extends StatelessWidget {
               child: TextField(
                 key: const Key('note-composer-field'),
                 controller: controller,
-                minLines: 2,
-                maxLines: 8,
+                autofocus: autofocus,
+                enabled: true,
+                minLines: 1,
+                maxLines: NoteEditor.composerMaxLines,
                 keyboardType: TextInputType.multiline,
                 textCapitalization: TextCapitalization.sentences,
-                style: const TextStyle(fontSize: 16, height: 1.25),
+                textInputAction: TextInputAction.newline,
+                cursorColor: ShelfColors.composerCaret,
+                style: const TextStyle(
+                  color: ShelfColors.composerText,
+                  fontSize: 16,
+                  height: 1.25,
+                ),
                 decoration: const InputDecoration(
-                  hintText: 'Type or dictate a note…',
+                  hintText: 'Leave a comment',
+                  hintStyle: TextStyle(
+                    color: ShelfColors.composerHint,
+                    fontSize: 16,
+                    height: 1.25,
+                  ),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
                   filled: false,
+                  fillColor: Colors.transparent,
                   isDense: true,
-                  contentPadding: EdgeInsets.symmetric(vertical: 8),
+                  contentPadding: EdgeInsets.symmetric(vertical: 10),
                 ),
               ),
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 6),
             _MicButton(listening: listening, onPressed: onMic),
+            const SizedBox(width: 8),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: NoteLabelPicker(
+                labels: labels,
+                selectedId: labelId,
+                onSelected: onLabel,
+              ),
+            ),
           ],
         ),
       ),
@@ -324,23 +391,69 @@ class _MicButton extends StatelessWidget {
     return Tooltip(
       message: listening ? 'Stop listening' : 'Start a voice note',
       child: Material(
-        color: listening ? ShelfColors.ink : ShelfColors.orange,
+        color: listening ? ShelfColors.orange : ShelfColors.composerMicCircle,
         shape: const CircleBorder(),
         child: InkWell(
           key: const Key('note-composer-mic'),
           customBorder: const CircleBorder(),
           onTap: onPressed,
           child: SizedBox(
-            width: 40,
-            height: 40,
+            width: 36,
+            height: 36,
             child: Icon(
               listening ? Icons.stop_rounded : Icons.mic,
-              color: ShelfColors.white,
-              size: 22,
+              color: listening ? ShelfColors.white : const Color(0xFFD1D1D6),
+              size: 20,
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PositionSlider extends StatelessWidget {
+  const _PositionSlider({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 18,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: ShelfColors.muted,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Slider(
+            value: value,
+            onChanged: onChanged,
+          ),
+        ),
+        SizedBox(
+          width: 40,
+          child: Text(
+            value.toStringAsFixed(2),
+            textAlign: TextAlign.end,
+            style: const TextStyle(fontSize: 12, color: ShelfColors.muted),
+          ),
+        ),
+      ],
     );
   }
 }

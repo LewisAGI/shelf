@@ -6,7 +6,6 @@ import 'package:pdfrx/pdfrx.dart';
 import '../data/shelf_store.dart';
 import '../models/library_document.dart';
 import '../models/note.dart';
-import '../services/first_tap_tracker.dart';
 import '../services/note_open_sequence.dart';
 import '../services/speech_capture.dart';
 import '../theme/shelf_theme.dart';
@@ -34,7 +33,6 @@ class ReaderScreen extends StatefulWidget {
 
 class _ReaderScreenState extends State<ReaderScreen> {
   final _controller = PdfViewerController();
-  final _taps = FirstTapTracker();
   final _speech = SpeechCapture();
 
   bool _showMarkers = true;
@@ -190,31 +188,31 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
-  bool _pointerHitsMarker(Offset globalPosition) {
+  Note? _noteAt(Offset globalPosition) {
     if (!_controller.isReady) {
-      return false;
+      return null;
     }
     final local = _controller.globalToLocal(globalPosition);
     if (local == null) {
-      return false;
+      return null;
     }
     final hit = _controller.getPdfPageHitTestResult(
       local,
       useDocumentLayoutCoordinates: false,
     );
     if (hit == null || hit.page.width == 0 || hit.page.height == 0) {
-      return false;
+      return null;
     }
     Size pageSizeInView;
     try {
       final layouts = _controller.layout.pageLayouts;
       final index = hit.page.pageNumber - 1;
       if (index < 0 || index >= layouts.length) {
-        return false;
+        return null;
       }
       pageSizeInView = layouts[index].size;
     } on Object {
-      return false;
+      return null;
     }
     final normalised = Offset(
       hit.offset.x / hit.page.width,
@@ -229,18 +227,22 @@ class _ReaderScreenState extends State<ReaderScreen> {
         normalisedTap: normalised,
         pageSizeInView: pageSizeInView,
       )) {
-        return true;
+        return note;
       }
     }
-    return false;
+    return null;
   }
 
-  void _onPagePointerDown(PointerDownEvent event) {
-    if (_pointerHitsMarker(event.position)) {
-      _taps.abortPending();
-      return;
+  /// Long-press on the page creates a note. Long-press on a marker edits it.
+  /// Text selection is disabled so this gesture is not stolen by pdfrx.
+  bool _onPageLongPress(PdfOverlayInteractionDetails details) {
+    final existing = _noteAt(details.globalPosition);
+    if (existing != null) {
+      unawaited(_editNote(existing));
+      return true;
     }
-    _taps.recordDown(event.position);
+    unawaited(_createNoteAt(details.globalPosition));
+    return true;
   }
 
   Future<void> _createNoteAt(Offset globalPosition) async {
@@ -272,6 +274,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
       defaultLabelId: widget.store.defaultLabel.id,
       speech: _speech,
       page: page,
+      x: x,
+      y: y,
       voiceHint: ready
           ? 'Orange is selected until you pick another colour.'
           : 'Voice dictation is limited on the Simulator. Type the note, or use a physical iPhone.',
@@ -282,15 +286,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final note = await widget.store.addNote(
       documentId: widget.document.id,
       page: page,
-      x: x,
-      y: y,
+      x: result.x,
+      y: result.y,
       text: result.text,
       colorLabelId: result.colorLabelId,
     );
     if (mounted) {
       setState(() => _focusedNoteId = note.id);
     }
-    _taps.clear();
   }
 
   Future<void> _editNote(Note note) async {
@@ -317,7 +320,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
       return;
     }
     await widget.store.saveNote(
-      note.copyWith(text: result.text, colorLabelId: result.colorLabelId),
+      note.copyWith(
+        text: result.text,
+        colorLabelId: result.colorLabelId,
+        x: result.x,
+        y: result.y,
+      ),
     );
   }
 
@@ -366,82 +374,73 @@ class _ReaderScreenState extends State<ReaderScreen> {
       body: ListenableBuilder(
         listenable: widget.store,
         builder: (context, _) {
-          return Listener(
-            onPointerDown: _onPagePointerDown,
-            onPointerMove: (event) => _taps.recordMove(event.position),
-            onPointerCancel: (_) => _taps.abortPending(),
-            child: FutureBuilder<String>(
-              future: widget.store.pdfPath(widget.document),
-              builder: (context, snapshot) {
-                final path = snapshot.data;
-                if (path == null) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                return PdfViewer.file(
-                  path,
-                  controller: _controller,
-                  params: PdfViewerParams(
-                    backgroundColor: ShelfColors.white,
-                    onViewerReady: _onViewerReady,
-                    onPageChanged: (page) {
-                      if (page != null && mounted) {
-                        setState(() => _page = page);
-                      }
-                    },
-                    pageOverlaysBuilder: (context, pageRect, page) {
-                      if (!_showMarkers) {
-                        return const <Widget>[];
-                      }
-                      final pageNotes = widget.store.notesOnPage(
-                        widget.document.id,
-                        page.pageNumber,
-                      );
-                      return [
-                        for (final note in pageNotes)
-                          Positioned(
-                            left: note.x * pageRect.width - 8,
-                            top: note.y * pageRect.height - 8,
-                            width: 22,
-                            height: 22,
-                            child: PdfOverlayInteractionRegion(
-                              onTap: (_) {
-                                _taps.clear();
-                                _editNote(note);
-                                return true;
-                              },
-                              child: NoteMarker(
-                                color: widget.store
-                                    .labelById(note.colorLabelId)
-                                    .color,
-                                focused: note.id == _focusedNoteId,
-                              ),
+          return FutureBuilder<String>(
+            future: widget.store.pdfPath(widget.document),
+            builder: (context, snapshot) {
+              final path = snapshot.data;
+              if (path == null) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              return PdfViewer.file(
+                path,
+                controller: _controller,
+                params: PdfViewerParams(
+                  backgroundColor: ShelfColors.white,
+                  // Long-press must open the composer, not PDF text selection
+                  // (the grey box Lewis hit on device).
+                  textSelectionParams: const PdfTextSelectionParams(
+                    enabled: false,
+                  ),
+                  onViewerReady: _onViewerReady,
+                  onPageChanged: (page) {
+                    if (page != null && mounted) {
+                      setState(() => _page = page);
+                    }
+                  },
+                  pageOverlaysBuilder: (context, pageRect, page) {
+                    if (!_showMarkers) {
+                      return const <Widget>[];
+                    }
+                    final pageNotes = widget.store.notesOnPage(
+                      widget.document.id,
+                      page.pageNumber,
+                    );
+                    return [
+                      for (final note in pageNotes)
+                        Positioned(
+                          left: note.x * pageRect.width - 8,
+                          top: note.y * pageRect.height - 8,
+                          width: 22,
+                          height: 22,
+                          child: PdfOverlayInteractionRegion(
+                            onTap: (_) {
+                              _editNote(note);
+                              return true;
+                            },
+                            child: NoteMarker(
+                              color: widget.store
+                                  .labelById(note.colorLabelId)
+                                  .color,
+                              focused: note.id == _focusedNoteId,
                             ),
                           ),
-                      ];
-                    },
-                    viewerOverlayBuilder: (context, size, handleLinkTap) {
-                      return [
-                        PdfOverlayInteractionRegion(
-                          onDoubleTap: (_) {
-                            final first = _taps.consumeFirst();
-                            // Fail closed: never place a note on the second
-                            // tap when the first of the pair is unknown.
-                            if (first != null) {
-                              unawaited(_createNoteAt(first));
-                            }
-                            return true;
-                          },
-                          child: SizedBox(
-                            width: size.width,
-                            height: size.height,
-                          ),
                         ),
-                      ];
-                    },
-                  ),
-                );
-              },
-            ),
+                    ];
+                  },
+                  viewerOverlayBuilder: (context, size, handleLinkTap) {
+                    return [
+                      PdfOverlayInteractionRegion(
+                        onLongPress: _onPageLongPress,
+                        child: SizedBox(
+                          width: size.width,
+                          height: size.height,
+                        ),
+                      ),
+                    ];
+                  },
+                ),
+              );
+            },
           );
         },
       ),

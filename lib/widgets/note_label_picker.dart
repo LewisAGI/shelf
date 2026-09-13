@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../models/color_label.dart';
 import '../theme/shelf_theme.dart';
-import 'colour_label_chip.dart';
 
-/// Compact colour-label control for the note composer.
+/// Clickable colour square on the composer pill.
 ///
-/// One tap assigns an existing Settings label. The selected colour is
-/// shown as a ring so it stays obvious on a small composer.
+/// Tap opens a vertical list of Settings labels. The square fill is the
+/// currently assigned colour (orange by default).
 class NoteLabelPicker extends StatelessWidget {
   const NoteLabelPicker({
     super.key,
@@ -16,120 +15,127 @@ class NoteLabelPicker extends StatelessWidget {
     required this.onSelected,
   });
 
+  static const double squareSize = 28;
+
   final List<ColorLabel> labels;
   final String selectedId;
   final ValueChanged<String> onSelected;
 
+  ColorLabel get _selected {
+    if (labels.isEmpty) {
+      return ColorLabel.seedDefaults().first;
+    }
+    return labels.cast<ColorLabel?>().firstWhere(
+          (label) => label?.id == selectedId,
+          orElse: () => labels.first,
+        )!;
+  }
+
+  Future<void> _openPicker(BuildContext context) async {
+    if (labels.isEmpty) {
+      return;
+    }
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: ShelfColors.white,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 12, 8, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                  child: Text(
+                    'Colour',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                for (final label in labels)
+                  ListTile(
+                    key: Key('note-label-${label.id}'),
+                    leading: _ColourSquare(
+                      color: label.color,
+                      selected: label.id == selectedId,
+                      size: 22,
+                    ),
+                    title: Text(label.name),
+                    subtitle: label.meaning.isEmpty
+                        ? null
+                        : Text(
+                            label.meaning,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                    selected: label.id == selectedId,
+                    onTap: () => Navigator.of(context).pop(label.id),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (chosen != null) {
+      onSelected(chosen);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (labels.isEmpty) {
-      return const Text(
-        'No colour labels yet. Add them in Settings.',
-        style: TextStyle(color: ShelfColors.muted, fontSize: 13),
-      );
-    }
-
-    final selected = labels.cast<ColorLabel?>().firstWhere(
-      (label) => label?.id == selectedId,
-      orElse: () => labels.first,
-    )!;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              'Label',
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: ShelfColors.muted,
-              ),
-            ),
-            const SizedBox(width: 8),
-            ColourDot(color: selected.color, size: 10),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                selected.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 36,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: labels.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
-            itemBuilder: (context, index) {
-              final label = labels[index];
-              final isSelected = label.id == selectedId;
-              return _LabelSwatch(
-                key: Key('note-label-${label.id}'),
-                label: label,
-                selected: isSelected,
-                onTap: () => onSelected(label.id),
-              );
-            },
+    final selected = _selected;
+    return Tooltip(
+      message: selected.meaning.isEmpty
+          ? selected.name
+          : '${selected.name}: ${selected.meaning}',
+      child: Material(
+        color: selected.color,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(5),
+          side: BorderSide(
+            color: Colors.white.withValues(alpha: 0.35),
           ),
         ),
-      ],
+        child: InkWell(
+          key: const Key('note-composer-colour'),
+          onTap: () => _openPicker(context),
+          borderRadius: BorderRadius.circular(5),
+          child: const SizedBox(
+            width: squareSize,
+            height: squareSize,
+          ),
+        ),
+      ),
     );
   }
 }
 
-class _LabelSwatch extends StatelessWidget {
-  const _LabelSwatch({
-    super.key,
-    required this.label,
+class _ColourSquare extends StatelessWidget {
+  const _ColourSquare({
+    required this.color,
     required this.selected,
-    required this.onTap,
+    this.size = 22,
   });
 
-  final ColorLabel label;
+  final Color color;
   final bool selected;
-  final VoidCallback onTap;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: label.meaning.isEmpty ? label.name : '${label.name}: ${label.meaning}',
-      child: Material(
-        color: selected ? ShelfColors.orangeSoft : ShelfColors.white,
-        shape: StadiumBorder(
-          side: BorderSide(
-            color: selected ? ShelfColors.orange : ShelfColors.hairline,
-            width: selected ? 1.5 : 1,
-          ),
-        ),
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const StadiumBorder(),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 6, 12, 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ColourDot(color: label.color, size: 14),
-                const SizedBox(width: 6),
-                Text(
-                  label.name,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                    color: ShelfColors.ink,
-                  ),
-                ),
-              ],
-            ),
-          ),
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: selected ? ShelfColors.ink : Colors.black.withValues(alpha: 0.16),
+          width: selected ? 2 : 1,
         ),
       ),
     );
