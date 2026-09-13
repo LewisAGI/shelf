@@ -268,11 +268,18 @@ class _NoteEditorState extends State<NoteEditor> {
           const SizedBox(height: 4),
           Row(
             children: [
-              TextButton(
-                onPressed: _manualClean,
-                child: const Text('Clean up filler'),
+              Flexible(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: _manualClean,
+                    child: const Text(
+                      'Clean up filler',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
               ),
-              const Spacer(),
               if (widget.note != null)
                 TextButton(
                   onPressed: _delete,
