@@ -43,6 +43,7 @@ First-run iOS build: open `ios/Runner.xcworkspace` in Xcode if you need to pick 
 7. Bottom bar: previous / next page, and the unfold control to **jump to a page number** or a **chapter** if the PDF has a table of contents.
 8. **Notes** tab: keyword search, filter by colour label, tap a row to open that PDF on that page. The reader waits until the viewer is ready, jumps to the page, brings the marker into view, then opens the editor — no fixed delay.
 9. **Settings**: edit the seeded labels (orange = general note, purple = further research), add your own colours and meanings. They persist with the local library.
+10. **Bring your own AI** (Settings → API / connection): pick OpenAI, OpenAI-compatible (base URL + key), or Anthropic. The key is stored in the iPhone Keychain. **Test connection** hits `/v1/models` (or a tiny chat completion if that 404s). From a note, **Ask about this note** sends the note text plus any quoted `selected_text` and page context to *your* provider — Shelf does not ship or spend a house key.
 
 ## What’s stubbed / limited
 
@@ -50,7 +51,8 @@ First-run iOS build: open `ios/Runner.xcworkspace` in Xcode if you need to pick 
 | --- | --- |
 | **Speech on Simulator** | Apple Speech is unreliable or unavailable in the Simulator. The editor stays usable: type the note. On a **physical iPhone**, grant Speech Recognition + Microphone when prompted (`Info.plist` strings are already set). If device dictation still fails, add the Speech Recognition capability on the Runner target in Xcode. |
 | **Android** | Out of scope. The project is iOS-only (`flutter create --platforms=ios`). |
-| **Cloud / accounts / App Store** | Not started. Library is local SQLite + sandbox files. |
+| **Cloud / accounts / App Store** | Not started. Library is local SQLite + sandbox files. BYO AI is device-to-provider only. |
+| **Export JSON/MD** | Still parked. |
 | **Commercial polish** | Intentionally light: readable British English chrome, white canvas, orange accents. |
 
 ## Persistence
@@ -70,4 +72,4 @@ flutter analyze
 flutter test
 ```
 
-Unit tests cover filler cleanup, the note / colour-label persistence model (`toMap` / `fromMap`, default orange seed, coordinate clamping), selection-anchored notes (quoted text + bounds), `FirstTapTracker` (legacy double-tap pairing), the notes-hub open sequence, the Grok-style composer (pill, mic, 4-line field, colour square; no X/Y sliders), and the long-press **Comment | Select text** menu.
+Unit tests cover filler cleanup, the note / colour-label persistence model (`toMap` / `fromMap`, default orange seed, coordinate clamping), selection-anchored notes (quoted text + bounds), `FirstTapTracker` (legacy double-tap pairing), the notes-hub open sequence, the Grok-style composer (pill, mic, 4-line field, colour square; no X/Y sliders), the long-press **Comment | Select text** menu, Keychain-backed BYO AI settings (mocked storage), verify-connection success/fail, and Ask-about-note wiring (mocked HTTP).

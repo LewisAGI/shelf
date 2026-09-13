@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/shelf_store.dart';
 import '../models/note.dart';
 import '../theme/shelf_theme.dart';
+import '../widgets/ask_about_note.dart';
 import '../widgets/colour_label_chip.dart';
 import 'reader_screen.dart';
 
@@ -138,6 +139,21 @@ class _NoteTile extends StatelessWidget {
             'Page ${note.page}',
             label.name,
           ].join(' · '),
+        ),
+        trailing: IconButton(
+          key: Key('ask-about-note-${note.id}'),
+          tooltip: 'Ask about this note',
+          icon: const Icon(Icons.auto_awesome_outlined),
+          onPressed: () {
+            AskAboutNoteButton.open(
+              context,
+              noteText: note.text,
+              selectedText: note.selection?.text,
+              documentTitle: document?.title,
+              page: note.page,
+              note: note,
+            );
+          },
         ),
         enabled: document != null,
         onTap: document == null

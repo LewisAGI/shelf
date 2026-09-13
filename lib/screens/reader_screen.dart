@@ -438,6 +438,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
       page: page,
       x: x,
       y: y,
+      documentTitle: widget.document.title,
+      quotedText: selection?.text,
       voiceHint: ready
           ? 'Orange is selected until you pick another colour.'
           : 'Voice dictation is limited on the Simulator. Type the note, or use a physical iPhone.',
@@ -467,6 +469,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
       defaultLabelId: widget.store.defaultLabel.id,
       speech: _speech,
       note: note,
+      documentTitle: widget.document.title,
+      quotedText: note.selection?.text,
     );
     if (result == null) {
       return;
@@ -519,6 +523,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return PdfSelectionChrome.wrap(_buildScaffold(context));
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.document.title),
@@ -544,8 +552,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
               if (path == null) {
                 return const Center(child: CircularProgressIndicator());
               }
-              // Transparent selection fill hides the grey box; custom
-              // handles stay so selectWord / grab / Add comment still work.
+              // Transparent canvas fill + compact handles. pdfrx has no
+              // other selection-fill hook; magnifier is a leftover box.
               return PdfSelectionChrome.wrap(
                 PdfViewer.file(
                   path,
@@ -559,6 +567,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       showContextMenuAutomatically: true,
                       onTextSelectionChange: _onTextSelectionChange,
                       buildSelectionHandle: PdfSelectionChrome.buildHandle,
+                      magnifier: const PdfViewerSelectionMagnifierParams(
+                        enabled: false,
+                      ),
                     ),
                     customizeContextMenuItems: _customizeSelectionMenu,
                     onViewerReady: _onViewerReady,

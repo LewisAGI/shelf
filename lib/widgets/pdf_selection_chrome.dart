@@ -5,19 +5,35 @@ import '../theme/shelf_theme.dart';
 
 /// Hides pdfrx's grey/black selection fill without dropping grab/widen handles.
 ///
-/// pdfrx paints both the page highlight and its default handles from
-/// [ThemeData.textSelectionTheme.selectionColor]. A transparent colour
-/// removes the box; [buildHandle] redraws the default 30×30 triangles in
-/// a visible colour so `selectWord` and Add comment stay usable.
+/// pdfrx 2.6.1 has **no** `selectionColor` on [PdfTextSelectionParams]. The
+/// page fill is painted in the viewer canvas from
+/// [ThemeData.textSelectionTheme.selectionColor] (`_selectionColorOf`).
+/// There is no separate page-overlay fill.
+///
+/// A fully transparent theme colour removes that canvas fill. Remaining
+/// chrome on device after PR #6 was handle geometry (30×30 filled triangles
+/// + black shadows) and the touch magnifier — not a second fill API. Those
+/// are thinned here: compact caret dots, no shadow, magnifier off.
+///
+/// If a faint box still appears, it is pdfrx canvas fill using a theme
+/// context that missed this wrap (fallback `DefaultSelectionStyle.defaultColor`).
+/// There is no further fill hook without forking pdfrx or covering glyphs.
 class PdfSelectionChrome {
   static const Color highlightColor = Color(0x00000000);
   static const Color handleColor = ShelfColors.composerCaret;
-  static const double handleSize = 30;
+  static const double handleHitSize = 30;
+  static const double handleVisualSize = 12;
+
+  /// Kept for tests / older call sites. Hit target stays 30; the drawn
+  /// caret is [handleVisualSize].
+  static const double handleSize = handleHitSize;
 
   static ThemeData theme(ThemeData base) {
     return base.copyWith(
       textSelectionTheme: const TextSelectionThemeData(
         selectionColor: highlightColor,
+        selectionHandleColor: highlightColor,
+        cursorColor: highlightColor,
       ),
     );
   }
@@ -29,6 +45,7 @@ class PdfSelectionChrome {
           data: theme(Theme.of(context)),
           child: DefaultSelectionStyle(
             selectionColor: highlightColor,
+            cursorColor: highlightColor,
             child: child,
           ),
         );
@@ -36,47 +53,34 @@ class PdfSelectionChrome {
     );
   }
 
-  /// Same triangle geometry as pdfrx's default handles (2.6.1).
+  /// Compact caret at the outside corner of a 30×30 hit box.
+  ///
+  /// pdfrx's default 30×30 triangles read as a leftover selection box once
+  /// the canvas fill is transparent. A 12px disc is still grabable.
   static Path handlePath({
     required PdfTextDirection direction,
     required PdfTextSelectionAnchorType type,
   }) {
+    final visual = handleVisualSize;
+    final hit = handleHitSize;
+    final isStart = type == PdfTextSelectionAnchorType.a;
+    final Offset centre;
     switch (direction) {
       case PdfTextDirection.ltr:
-        if (type == PdfTextSelectionAnchorType.a) {
-          return Path()
-            ..moveTo(handleSize, 0)
-            ..lineTo(handleSize, handleSize)
-            ..lineTo(0, handleSize)
-            ..close();
-        }
-        return Path()
-          ..moveTo(0, 0)
-          ..lineTo(handleSize, 0)
-          ..lineTo(0, handleSize)
-          ..close();
+        centre = Offset(
+          isStart ? visual / 2 : hit - visual / 2,
+          hit - visual / 2,
+        );
       case PdfTextDirection.rtl:
       case PdfTextDirection.vrtl:
-        if (type == PdfTextSelectionAnchorType.a) {
-          return Path()
-            ..moveTo(0, handleSize)
-            ..lineTo(handleSize, handleSize)
-            ..lineTo(0, 0)
-            ..close();
-        }
-        return Path()
-          ..moveTo(0, 0)
-          ..lineTo(handleSize, 0)
-          ..lineTo(handleSize, handleSize)
-          ..close();
+        centre = Offset(
+          isStart ? hit - visual / 2 : visual / 2,
+          hit - visual / 2,
+        );
       case PdfTextDirection.unknown:
-        return Path()
-          ..moveTo(0, 0)
-          ..lineTo(handleSize, 0)
-          ..lineTo(handleSize, handleSize)
-          ..lineTo(0, handleSize)
-          ..close();
+        centre = Offset(hit / 2, hit / 2);
     }
+    return Path()..addOval(Rect.fromCircle(center: centre, radius: visual / 2));
   }
 
   static Widget? buildHandle(
@@ -103,47 +107,33 @@ class PdfSelectionHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (color, shadow) = switch (state) {
-      PdfViewerTextSelectionAnchorHandleState.normal => (
-        PdfSelectionChrome.handleColor.withValues(alpha: .7),
-        true,
-      ),
-      PdfViewerTextSelectionAnchorHandleState.dragging => (
+    final color = switch (state) {
+      PdfViewerTextSelectionAnchorHandleState.normal =>
+        PdfSelectionChrome.handleColor.withValues(alpha: .85),
+      PdfViewerTextSelectionAnchorHandleState.dragging =>
         PdfSelectionChrome.handleColor,
-        false,
-      ),
-      PdfViewerTextSelectionAnchorHandleState.hover => (
+      PdfViewerTextSelectionAnchorHandleState.hover =>
         PdfSelectionChrome.handleColor,
-        true,
-      ),
     };
     return CustomPaint(
       key: const Key('pdf-selection-handle'),
-      painter: _HandlePainter(path: path, color: color, shadow: shadow),
+      painter: _HandlePainter(path: path, color: color),
       size: const Size(
-        PdfSelectionChrome.handleSize,
-        PdfSelectionChrome.handleSize,
+        PdfSelectionChrome.handleHitSize,
+        PdfSelectionChrome.handleHitSize,
       ),
     );
   }
 }
 
 class _HandlePainter extends CustomPainter {
-  const _HandlePainter({
-    required this.path,
-    required this.color,
-    required this.shadow,
-  });
+  const _HandlePainter({required this.path, required this.color});
 
   final Path path;
   final Color color;
-  final bool shadow;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (shadow) {
-      canvas.drawShadow(path, Colors.black, 4, true);
-    }
     canvas.drawPath(
       path,
       Paint()
@@ -154,16 +144,14 @@ class _HandlePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _HandlePainter oldDelegate) {
-    return oldDelegate.path != path ||
-        oldDelegate.color != color ||
-        oldDelegate.shadow != shadow;
+    return oldDelegate.path != path || oldDelegate.color != color;
   }
 
   @override
   bool? hitTest(Offset position) {
     return position.dx >= 0 &&
-        position.dx <= PdfSelectionChrome.handleSize &&
+        position.dx <= PdfSelectionChrome.handleHitSize &&
         position.dy >= 0 &&
-        position.dy <= PdfSelectionChrome.handleSize;
+        position.dy <= PdfSelectionChrome.handleHitSize;
   }
 }
