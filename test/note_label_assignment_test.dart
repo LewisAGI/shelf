@@ -482,17 +482,30 @@ void main() {
 
     expect(find.text('Colour labels'), findsOneWidget);
     expect(find.text('General note'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('API / connection'), 300);
+    final pageScroll = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.text('API / connection'),
+      300,
+      scrollable: pageScroll,
+    );
     expect(find.text('API / connection'), findsOneWidget);
     expect(find.text('Connection'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('Bring your own AI'), 200);
+    await tester.scrollUntilVisible(
+      find.text('Bring your own AI'),
+      200,
+      scrollable: pageScroll,
+    );
     expect(find.text('Bring your own AI'), findsOneWidget);
     expect(find.text('API key'), findsOneWidget);
     expect(find.text('Endpoint'), findsOneWidget);
     expect(find.text('Coming in a later release'), findsNothing);
     expect(find.text('Add a key after labels ship'), findsNothing);
     expect(find.byKey(const Key('settings-ai-test-connection')), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('About'), 200);
+    await tester.scrollUntilVisible(
+      find.text('About'),
+      200,
+      scrollable: pageScroll,
+    );
     expect(find.text('About'), findsOneWidget);
   });
 }

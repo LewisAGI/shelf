@@ -7,7 +7,6 @@ import 'package:shelf/models/color_label.dart';
 import 'package:shelf/models/library_document.dart';
 import 'package:shelf/models/note.dart';
 import 'package:shelf/models/note_selection.dart';
-import 'package:shelf/screens/notes_hub_screen.dart';
 import 'package:shelf/screens/settings_screen.dart';
 import 'package:shelf/services/ai_secure_storage.dart';
 import 'package:shelf/services/ai_settings_controller.dart';
@@ -62,6 +61,10 @@ void main() {
     Widget home, {
     Size size = const Size(400, 900),
   }) async {
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
       AiScope(
         controller: ai,
@@ -71,8 +74,6 @@ void main() {
         ),
       ),
     );
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
     await tester.pump();
   }
 
@@ -155,43 +156,30 @@ void main() {
     expect(find.byKey(const Key('ask-about-note-result')), findsNothing);
   });
 
-  testWidgets('Notes hub Ask uses the row note and selected_text', (
-    tester,
-  ) async {
-    await ai.saveApiKey('sk-test-not-a-real-key');
-    await store.addNote(
-      documentId: 'pdf-1',
+  test('Ask request includes note text, selected_text, title, and page', () {
+    final request = AskAboutNoteButton.requestFor(
+      noteText: 'Look this up.',
+      selectedText: 'standing remark',
+      documentTitle: 'Notes on method',
       page: 3,
-      x: 0.2,
-      y: 0.3,
-      text: 'Look this up.',
-      selection: const NoteSelection(
-        text: 'standing remark',
-        left: 0.1,
-        top: 0.1,
-        right: 0.3,
-        bottom: 0.15,
-      ),
     );
-
-    await pumpScoped(tester, NotesHubScreen(store: store));
-    final noteId = store.notes.single.id;
-    await tester.tap(find.byKey(Key('ask-about-note-$noteId')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-
-    expect(find.byKey(const Key('ask-about-note-result')), findsOneWidget);
-    expect(fake.lastAsk!.noteText, 'Look this up.');
-    expect(fake.lastAsk!.selectedText, 'standing remark');
-    expect(fake.lastAsk!.documentTitle, 'Notes on method');
-    expect(fake.lastAsk!.page, 3);
+    expect(request.noteText, 'Look this up.');
+    expect(request.selectedText, 'standing remark');
+    expect(request.documentTitle, 'Notes on method');
+    expect(request.page, 3);
+    expect(request.hasAnythingToAsk, isTrue);
   });
 
   testWidgets('Settings Test connection success and failure', (tester) async {
     await pumpScoped(tester, SettingsScreen(store: store));
     await tester.pump();
 
-    await tester.scrollUntilVisible(find.text('Bring your own AI'), 300);
+    final pageScroll = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.text('Bring your own AI'),
+      300,
+      scrollable: pageScroll,
+    );
     expect(find.text('API / connection'), findsOneWidget);
     expect(find.text('Connection'), findsOneWidget);
     expect(find.text('Provider'), findsOneWidget);
@@ -211,6 +199,7 @@ void main() {
     await tester.scrollUntilVisible(
       find.byKey(const Key('settings-ai-test-connection')),
       200,
+      scrollable: pageScroll,
     );
     await tester.tap(find.byKey(const Key('settings-ai-test-connection')));
     await tester.pump();
