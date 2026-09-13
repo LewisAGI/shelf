@@ -15,6 +15,7 @@ import '../widgets/note_editor.dart';
 import '../widgets/note_marker.dart';
 import '../widgets/page_jump_sheet.dart';
 import '../widgets/page_press_menu.dart';
+import '../widgets/pdf_selection_chrome.dart';
 import '../widgets/selection_comment_bar.dart';
 
 class ReaderScreen extends StatefulWidget {
@@ -543,82 +544,87 @@ class _ReaderScreenState extends State<ReaderScreen> {
               if (path == null) {
                 return const Center(child: CircularProgressIndicator());
               }
-              return PdfViewer.file(
-                path,
-                controller: _controller,
-                params: PdfViewerParams(
-                  backgroundColor: ShelfColors.white,
-                  // Selection is off until Select text, so long-press is ours.
-                  textSelectionParams: PdfTextSelectionParams(
-                    enabled: _selectionEnabled,
-                    enableSelectionHandles: true,
-                    showContextMenuAutomatically: true,
-                    onTextSelectionChange: _onTextSelectionChange,
-                  ),
-                  customizeContextMenuItems: _customizeSelectionMenu,
-                  onViewerReady: _onViewerReady,
-                  onPageChanged: (page) {
-                    if (page != null && mounted) {
-                      setState(() => _page = page);
-                    }
-                  },
-                  pageOverlaysBuilder: (context, pageRect, page) {
-                    if (!_showMarkers) {
-                      return const <Widget>[];
-                    }
-                    final pageNotes = widget.store.notesOnPage(
-                      widget.document.id,
-                      page.pageNumber,
-                    );
-                    return [
-                      for (final note in pageNotes)
-                        Positioned(
-                          left: note.x * pageRect.width - 8,
-                          top: note.y * pageRect.height - 8,
-                          width: 22,
-                          height: 22,
-                          child: PdfOverlayInteractionRegion(
-                            onTap: (_) {
-                              _editNote(note);
-                              return true;
-                            },
-                            child: NoteMarker(
-                              color: widget.store
-                                  .labelById(note.colorLabelId)
-                                  .color,
-                              focused: note.id == _focusedNoteId,
+              // Transparent selection fill hides the grey box; custom
+              // handles stay so selectWord / grab / Add comment still work.
+              return PdfSelectionChrome.wrap(
+                PdfViewer.file(
+                  path,
+                  controller: _controller,
+                  params: PdfViewerParams(
+                    backgroundColor: ShelfColors.white,
+                    // Selection is off until Select text, so long-press is ours.
+                    textSelectionParams: PdfTextSelectionParams(
+                      enabled: _selectionEnabled,
+                      enableSelectionHandles: true,
+                      showContextMenuAutomatically: true,
+                      onTextSelectionChange: _onTextSelectionChange,
+                      buildSelectionHandle: PdfSelectionChrome.buildHandle,
+                    ),
+                    customizeContextMenuItems: _customizeSelectionMenu,
+                    onViewerReady: _onViewerReady,
+                    onPageChanged: (page) {
+                      if (page != null && mounted) {
+                        setState(() => _page = page);
+                      }
+                    },
+                    pageOverlaysBuilder: (context, pageRect, page) {
+                      if (!_showMarkers) {
+                        return const <Widget>[];
+                      }
+                      final pageNotes = widget.store.notesOnPage(
+                        widget.document.id,
+                        page.pageNumber,
+                      );
+                      return [
+                        for (final note in pageNotes)
+                          Positioned(
+                            left: note.x * pageRect.width - 8,
+                            top: note.y * pageRect.height - 8,
+                            width: 22,
+                            height: 22,
+                            child: PdfOverlayInteractionRegion(
+                              onTap: (_) {
+                                _editNote(note);
+                                return true;
+                              },
+                              child: NoteMarker(
+                                color: widget.store
+                                    .labelById(note.colorLabelId)
+                                    .color,
+                                focused: note.id == _focusedNoteId,
+                              ),
                             ),
                           ),
-                        ),
-                    ];
-                  },
-                  viewerOverlayBuilder: (context, size, handleLinkTap) {
-                    return [
-                      if (!_selectionEnabled)
-                        PdfOverlayInteractionRegion(
-                          onLongPress: _onPageLongPress,
-                          child: SizedBox(
-                            width: size.width,
-                            height: size.height,
+                      ];
+                    },
+                    viewerOverlayBuilder: (context, size, handleLinkTap) {
+                      return [
+                        if (!_selectionEnabled)
+                          PdfOverlayInteractionRegion(
+                            onLongPress: _onPageLongPress,
+                            child: SizedBox(
+                              width: size.width,
+                              height: size.height,
+                            ),
                           ),
-                        ),
-                      if (_selectionEnabled)
-                        Positioned(
-                          top: 12,
-                          left: 12,
-                          right: 12,
-                          child: SelectionCommentBar(
-                            hasSelection: _hasActiveSelection,
-                            onAddComment: () {
-                              unawaited(_createNoteFromSelection());
-                            },
-                            onDone: () {
-                              unawaited(_exitSelectionMode());
-                            },
+                        if (_selectionEnabled)
+                          Positioned(
+                            top: 12,
+                            left: 12,
+                            right: 12,
+                            child: SelectionCommentBar(
+                              hasSelection: _hasActiveSelection,
+                              onAddComment: () {
+                                unawaited(_createNoteFromSelection());
+                              },
+                              onDone: () {
+                                unawaited(_exitSelectionMode());
+                              },
+                            ),
                           ),
-                        ),
-                    ];
-                  },
+                      ];
+                    },
+                  ),
                 ),
               );
             },

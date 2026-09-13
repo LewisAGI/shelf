@@ -84,8 +84,9 @@ void main() {
     expect(find.byKey(const Key('note-composer-mic')), findsOneWidget);
     expect(find.byKey(const Key('note-composer-colour')), findsOneWidget);
     expect(find.text('Leave a comment'), findsOneWidget);
-    expect(find.text('0.41'), findsOneWidget);
-    expect(find.text('0.63'), findsOneWidget);
+    expect(find.byType(Slider), findsNothing);
+    expect(find.byKey(const Key('note-position-x')), findsNothing);
+    expect(find.byKey(const Key('note-position-y')), findsNothing);
   });
 
   testWidgets('Select text does not open the composer', (tester) async {
@@ -104,7 +105,9 @@ void main() {
                   globalPosition: const Offset(120, 180),
                 );
               },
-              child: const SizedBox.expand(child: ColoredBox(color: Colors.white)),
+              child: const SizedBox.expand(
+                child: ColoredBox(color: Colors.white),
+              ),
             );
           },
         ),

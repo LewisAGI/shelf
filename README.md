@@ -35,7 +35,7 @@ First-run iOS build: open `ios/Runner.xcworkspace` in Xcode if you need to pick 
 ## Demo path
 
 1. **Import a PDF** — Library → **Import PDF** (Files picker). The file is copied into the app Documents sandbox (`…/Documents/library/`).
-2. Open the PDF. **Long-press** the page for a short menu: **Comment** | **Select text**. **Comment** opens the Grok pill at the press point (placeholder “Leave a comment”, mic, colour square; X/Y sliders fine-tune the marker). **Select text** turns PDF handles back on for that gesture and selects the word under the press so you can grab/widen it — then **Add comment** anchors the note to that selection (quoted text + bounds), not only a free X/Y marker. Tap a marker to reopen a note.
+2. Open the PDF. **Long-press** the page for a short menu: **Comment** | **Select text**. **Comment** opens the Grok pill at the press point (placeholder “Leave a comment”, mic, colour square). **Select text** turns PDF handles back on for that gesture and selects the word under the press so you can grab/widen it — then **Add comment** anchors the note to that selection (quoted text + bounds). Tap a marker to reopen a note.
 3. **Dictate** (microphone) or type. On a physical iPhone, speech-to-text runs with British English. After dictation, filler words (`um`, `uh`, `like`, …) are stripped automatically; **Clean up filler** does the same pass by hand.
 4. New notes start on the **orange** colour label (“General note”). Tap the colour **square** to the right of the microphone to pick another Settings colour.
 5. **Show / hide markers** from the top chrome (eye icon) — outside the PDF, so it does not steal page gestures.
@@ -70,4 +70,4 @@ flutter analyze
 flutter test
 ```
 
-Unit tests cover filler cleanup, the note / colour-label persistence model (`toMap` / `fromMap`, default orange seed, coordinate clamping), selection-anchored notes (quoted text + bounds), `FirstTapTracker` (legacy double-tap pairing), the notes-hub open sequence, the Grok-style composer (pill, mic, 4-line field, colour square, X/Y sliders), and the long-press **Comment | Select text** menu.
+Unit tests cover filler cleanup, the note / colour-label persistence model (`toMap` / `fromMap`, default orange seed, coordinate clamping), selection-anchored notes (quoted text + bounds), `FirstTapTracker` (legacy double-tap pairing), the notes-hub open sequence, the Grok-style composer (pill, mic, 4-line field, colour square; no X/Y sliders), and the long-press **Comment | Select text** menu.
