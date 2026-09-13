@@ -35,9 +35,9 @@ First-run iOS build: open `ios/Runner.xcworkspace` in Xcode if you need to pick 
 ## Demo path
 
 1. **Import a PDF** — Library → **Import PDF** (Files picker). The file is copied into the app Documents sandbox (`…/Documents/library/`).
-2. Open the PDF. **Double-tap** the page: the note is placed at the **first** tap of that double-tap (the pairing window and slop match Flutter’s double-tap recogniser). Marker taps and cancelled pans are ignored. If the first tap cannot be determined, Shelf does **not** fall back to the second tap — try the double-tap again. A small square marker appears.
+2. Open the PDF. **Long-press** the page to place a note at that position (PDF text selection is off so the press opens the composer, not a selection box). X/Y sliders fine-tune the marker. Tap a marker to reopen a note. A small square marker appears.
 3. **Dictate** (microphone) or type. On a physical iPhone, speech-to-text runs with British English. After dictation, filler words (`um`, `uh`, `like`, …) are stripped automatically; **Clean up filler** does the same pass by hand.
-4. New notes start on the **orange** colour label (“General note”). Change the colour in the editor if you like.
+4. New notes start on the **orange** colour label (“General note”). Tap the colour **square** to the right of the microphone to pick another Settings colour.
 5. **Show / hide markers** from the top chrome (eye icon) — outside the PDF, so it does not steal page gestures.
 6. Tap a marker to reopen the note. Markers use the label colour.
 7. Bottom bar: previous / next page, and the unfold control to **jump to a page number** or a **chapter** if the PDF has a table of contents.
@@ -70,4 +70,4 @@ flutter analyze
 flutter test
 ```
 
-Unit tests cover filler cleanup, the note / colour-label persistence model (`toMap` / `fromMap`, default orange seed, coordinate clamping), `FirstTapTracker` (first vs second tap, slop/window, clear-on-consume), and the notes-hub open sequence.
+Unit tests cover filler cleanup, the note / colour-label persistence model (`toMap` / `fromMap`, default orange seed, coordinate clamping), `FirstTapTracker` (legacy double-tap pairing), the notes-hub open sequence, and the Grok-style composer (pill, mic, 4-line field, colour square, X/Y sliders, long-press create path).

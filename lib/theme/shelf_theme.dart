@@ -13,6 +13,13 @@ class ShelfColors {
   static const hairline = Color(0xFFE7E5E4);
   static const defaultOrangeHex = '#F15A22';
   static const defaultPurpleHex = '#6D28D9';
+
+  /// Grok-style dark chat pill (intentional even on white Shelf chrome).
+  static const composerPill = Color(0xFF1C1C1E);
+  static const composerMicCircle = Color(0xFF3A3A3C);
+  static const composerHint = Color(0xFF8E8E93);
+  static const composerText = Color(0xFFF5F5F7);
+  static const composerCaret = Color(0xFF0A84FF);
 }
 
 class ShelfTheme {
