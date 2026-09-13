@@ -5,7 +5,7 @@ import '../models/note.dart';
 import '../services/filler_cleanup.dart';
 import '../services/speech_capture.dart';
 import '../theme/shelf_theme.dart';
-import 'colour_label_chip.dart';
+import 'note_label_picker.dart';
 
 class NoteEditorResult {
   const NoteEditorResult({
@@ -162,106 +162,183 @@ class _NoteEditorState extends State<NoteEditor> {
     });
   }
 
+  void _save() {
+    Navigator.of(context).pop(
+      NoteEditorResult(
+        text: _controller.text.trim(),
+        colorLabelId: _labelId,
+      ),
+    );
+  }
+
+  void _delete() {
+    Navigator.of(context).pop(
+      NoteEditorResult(
+        text: _controller.text,
+        colorLabelId: _labelId,
+        delete: true,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final page = widget.note?.page ?? widget.page;
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        20,
         16,
-        20,
-        20 + MediaQuery.viewInsetsOf(context).bottom,
+        10,
+        16,
+        12 + MediaQuery.viewInsetsOf(context).bottom,
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              widget.note == null ? 'New note' : 'Note',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            if (page != null)
-              Text(
-                'Page $page',
-                style: const TextStyle(color: ShelfColors.muted),
-              ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final label in widget.labels)
-                  ColourLabelChip(
-                    label: label,
-                    selected: label.id == _labelId,
-                    onTap: () => setState(() => _labelId = label.id),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.note == null ? 'New note' : 'Note',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _controller,
-              minLines: 4,
-              maxLines: 8,
-              decoration: const InputDecoration(
-                hintText: 'Dictate or type the note…',
+                ),
               ),
-            ),
-            if (_status != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                _status!,
-                style: const TextStyle(color: ShelfColors.muted, fontSize: 13),
-              ),
+              if (page != null)
+                Text(
+                  'Page $page',
+                  style: const TextStyle(color: ShelfColors.muted, fontSize: 13),
+                ),
             ],
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                IconButton.filled(
-                  onPressed: _toggleListen,
-                  style: IconButton.styleFrom(
-                    backgroundColor: _listening
-                        ? ShelfColors.ink
-                        : ShelfColors.orange,
-                    foregroundColor: ShelfColors.white,
-                  ),
-                  icon: Icon(_listening ? Icons.stop : Icons.mic_none),
-                  tooltip: _listening ? 'Stop listening' : 'Dictate',
-                ),
-                const SizedBox(width: 8),
-                OutlinedButton(
-                  onPressed: _manualClean,
-                  child: const Text('Clean up filler'),
-                ),
-                const Spacer(),
-                if (widget.note != null)
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop(
-                        NoteEditorResult(
-                          text: _controller.text,
-                          colorLabelId: _labelId,
-                          delete: true,
-                        ),
-                      );
-                    },
-                    child: const Text('Delete'),
-                  ),
-                FilledButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(
-                      NoteEditorResult(
-                        text: _controller.text.trim(),
-                        colorLabelId: _labelId,
-                      ),
-                    );
-                  },
-                  child: const Text('Save'),
-                ),
-              ],
+          ),
+          const SizedBox(height: 10),
+          NoteLabelPicker(
+            labels: widget.labels,
+            selectedId: _labelId,
+            onSelected: (id) => setState(() => _labelId = id),
+          ),
+          const SizedBox(height: 10),
+          _ChatComposer(
+            controller: _controller,
+            listening: _listening,
+            onMic: _toggleListen,
+          ),
+          if (_status != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              _status!,
+              style: const TextStyle(color: ShelfColors.muted, fontSize: 12),
             ),
           ],
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              TextButton(
+                onPressed: _manualClean,
+                child: const Text('Clean up filler'),
+              ),
+              const Spacer(),
+              if (widget.note != null)
+                TextButton(
+                  onPressed: _delete,
+                  child: const Text('Delete'),
+                ),
+              FilledButton(
+                onPressed: _save,
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Grok-style chat composer: compact rounded field, mic in the corner.
+class _ChatComposer extends StatelessWidget {
+  const _ChatComposer({
+    required this.controller,
+    required this.listening,
+    required this.onMic,
+  });
+
+  final TextEditingController controller;
+  final bool listening;
+  final VoidCallback onMic;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAFAF9),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: listening ? ShelfColors.orange : ShelfColors.hairline,
+          width: listening ? 1.5 : 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: TextField(
+                key: const Key('note-composer-field'),
+                controller: controller,
+                minLines: 2,
+                maxLines: 8,
+                keyboardType: TextInputType.multiline,
+                textCapitalization: TextCapitalization.sentences,
+                style: const TextStyle(fontSize: 16, height: 1.25),
+                decoration: const InputDecoration(
+                  hintText: 'Type or dictate a note…',
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  filled: false,
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(vertical: 8),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            _MicButton(listening: listening, onPressed: onMic),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MicButton extends StatelessWidget {
+  const _MicButton({required this.listening, required this.onPressed});
+
+  final bool listening;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: listening ? 'Stop listening' : 'Start a voice note',
+      child: Material(
+        color: listening ? ShelfColors.ink : ShelfColors.orange,
+        shape: const CircleBorder(),
+        child: InkWell(
+          key: const Key('note-composer-mic'),
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(
+              listening ? Icons.stop_rounded : Icons.mic,
+              color: ShelfColors.white,
+              size: 22,
+            ),
+          ),
         ),
       ),
     );
