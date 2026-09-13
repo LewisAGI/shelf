@@ -5,6 +5,7 @@ import '../models/note.dart';
 import '../services/filler_cleanup.dart';
 import '../services/speech_capture.dart';
 import '../theme/shelf_theme.dart';
+import 'ask_about_note.dart';
 import 'note_label_picker.dart';
 
 class NoteEditorResult {
@@ -34,6 +35,8 @@ class NoteEditor extends StatefulWidget {
     this.x,
     this.y,
     this.voiceHint,
+    this.documentTitle,
+    this.quotedText,
   });
 
   final List<ColorLabel> labels;
@@ -44,6 +47,8 @@ class NoteEditor extends StatefulWidget {
   final double? x;
   final double? y;
   final String? voiceHint;
+  final String? documentTitle;
+  final String? quotedText;
 
   static const int composerMaxLines = 4;
 
@@ -57,6 +62,8 @@ class NoteEditor extends StatefulWidget {
     double? x,
     double? y,
     String? voiceHint,
+    String? documentTitle,
+    String? quotedText,
   }) {
     return showModalBottomSheet<NoteEditorResult>(
       context: context,
@@ -73,6 +80,8 @@ class NoteEditor extends StatefulWidget {
           x: x,
           y: y,
           voiceHint: voiceHint,
+          documentTitle: documentTitle,
+          quotedText: quotedText ?? note?.selection?.text,
         );
       },
     );
@@ -254,6 +263,13 @@ class _NoteEditorState extends State<NoteEditor> {
               style: const TextStyle(color: ShelfColors.muted, fontSize: 12),
             ),
           ],
+          const SizedBox(height: 8),
+          AskAboutNoteButton(
+            noteText: () => _controller.text,
+            selectedText: widget.quotedText ?? widget.note?.selection?.text,
+            documentTitle: widget.documentTitle,
+            page: widget.note?.page ?? widget.page,
+          ),
           const SizedBox(height: 8),
           Row(
             children: [

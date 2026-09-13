@@ -6,12 +6,18 @@ import 'package:shelf/models/color_label.dart';
 import 'package:shelf/models/library_document.dart';
 import 'package:shelf/models/note.dart';
 import 'package:shelf/screens/settings_screen.dart';
+import 'package:shelf/services/ai_secure_storage.dart';
+import 'package:shelf/services/ai_settings_controller.dart';
 import 'package:shelf/services/speech_capture.dart';
 import 'package:shelf/theme/shelf_theme.dart';
+import 'package:shelf/widgets/ai_scope.dart';
+import 'package:shelf/widgets/ask_about_note.dart';
 import 'package:shelf/widgets/note_editor.dart';
 import 'package:shelf/widgets/note_label_picker.dart';
 import 'package:shelf/widgets/note_marker.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+
+import 'support/fake_ai_client.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -394,6 +400,7 @@ void main() {
         expect(find.byKey(const Key('note-composer-mic')), findsOneWidget);
         expect(find.byKey(const Key('note-composer-colour')), findsOneWidget);
         expect(find.text('Leave a comment'), findsOneWidget);
+        expect(find.byType(AskAboutNoteButton), findsOneWidget);
         expect(find.byType(Slider), findsNothing);
         expect(find.byKey(const Key('note-position-x')), findsNothing);
         expect(find.byKey(const Key('note-position-y')), findsNothing);
@@ -454,27 +461,51 @@ void main() {
     expect(marker.color, label.color);
   });
 
-  testWidgets('Settings keeps Labels and adds an API / connection section', (
+  testWidgets('Settings keeps Labels and a live API / connection section', (
     tester,
   ) async {
+    final ai = AiSettingsController(
+      storage: MemoryAiSecureStorage(),
+      client: FakeAiClient(),
+    );
+    await ai.load();
     await tester.pumpWidget(
-      MaterialApp(
-        theme: ShelfTheme.light(),
-        home: SettingsScreen(store: store),
+      AiScope(
+        controller: ai,
+        child: MaterialApp(
+          theme: ShelfTheme.light(),
+          home: SettingsScreen(store: store),
+        ),
       ),
     );
     await tester.pump();
 
     expect(find.text('Colour labels'), findsOneWidget);
     expect(find.text('General note'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('API / connection'), 300);
+    final pageScroll = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.text('API / connection'),
+      300,
+      scrollable: pageScroll,
+    );
     expect(find.text('API / connection'), findsOneWidget);
     expect(find.text('Connection'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('Bring your own AI'), 200);
+    await tester.scrollUntilVisible(
+      find.text('Bring your own AI'),
+      200,
+      scrollable: pageScroll,
+    );
     expect(find.text('Bring your own AI'), findsOneWidget);
     expect(find.text('API key'), findsOneWidget);
     expect(find.text('Endpoint'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('About'), 200);
+    expect(find.text('Coming in a later release'), findsNothing);
+    expect(find.text('Add a key after labels ship'), findsNothing);
+    expect(find.byKey(const Key('settings-ai-test-connection')), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('About'),
+      200,
+      scrollable: pageScroll,
+    );
     expect(find.text('About'), findsOneWidget);
   });
 }

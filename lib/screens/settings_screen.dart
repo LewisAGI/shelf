@@ -4,6 +4,7 @@ import '../data/shelf_database.dart';
 import '../data/shelf_store.dart';
 import '../models/color_label.dart';
 import '../theme/shelf_theme.dart';
+import '../widgets/ai_connection_settings.dart';
 import '../widgets/colour_label_chip.dart';
 
 const _palette = <String>[
@@ -110,7 +111,7 @@ class SettingsScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 28),
-              const _ApiConnectionSettings(),
+              const AiConnectionSettings(),
               const SizedBox(height: 28),
               _SettingsSection(
                 title: 'About',
@@ -122,58 +123,6 @@ class SettingsScreen extends StatelessWidget {
           );
         },
       ),
-    );
-  }
-}
-
-/// API / connection block — same section + grouped-row pattern as Labels.
-/// Fields are stubs this pass; BYO-AI is not wired.
-class _ApiConnectionSettings extends StatelessWidget {
-  const _ApiConnectionSettings();
-
-  @override
-  Widget build(BuildContext context) {
-    return _SettingsSection(
-      title: 'API / connection',
-      description:
-          'Connection and bring-your-own keys live here. They are not used in this release — notes stay on this iPhone.',
-      children: [
-        _SettingsSubhead(title: 'Connection'),
-        _SettingsGroup(
-          rows: const [
-            _SettingsRow(
-              title: 'Status',
-              subtitle: 'On this iPhone only — no cloud account',
-            ),
-            _SettingsRow(
-              title: 'Endpoint',
-              subtitle: 'Not configured',
-            ),
-            _SettingsRow(
-              title: 'Sync',
-              subtitle: 'Off — this device is the library',
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _SettingsSubhead(title: 'Bring your own AI'),
-        _SettingsGroup(
-          rows: const [
-            _SettingsRow(
-              title: 'Provider',
-              subtitle: 'Coming in a later release',
-            ),
-            _SettingsRow(
-              title: 'API key',
-              subtitle: 'Add a key after labels ship',
-            ),
-            _SettingsRow(
-              title: 'Model',
-              subtitle: 'Not connected',
-            ),
-          ],
-        ),
-      ],
     );
   }
 }
@@ -207,20 +156,6 @@ class _SettingsSection extends StatelessWidget {
   }
 }
 
-class _SettingsSubhead extends StatelessWidget {
-  const _SettingsSubhead({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(title, style: Theme.of(context).textTheme.titleMedium),
-    );
-  }
-}
-
 class _SettingsCard extends StatelessWidget {
   const _SettingsCard({required this.child});
 
@@ -236,42 +171,6 @@ class _SettingsCard extends StatelessWidget {
         side: const BorderSide(color: ShelfColors.hairline),
       ),
       child: child,
-    );
-  }
-}
-
-class _SettingsGroup extends StatelessWidget {
-  const _SettingsGroup({required this.rows});
-
-  final List<_SettingsRow> rows;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SettingsCard(
-      child: Column(
-        children: [
-          for (var i = 0; i < rows.length; i++) ...[
-            rows[i],
-            if (i < rows.length - 1)
-              const Divider(height: 1, indent: 16, endIndent: 16),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _SettingsRow extends StatelessWidget {
-  const _SettingsRow({required this.title, required this.subtitle});
-
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      title: Text(title),
-      subtitle: Text(subtitle),
     );
   }
 }

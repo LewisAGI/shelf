@@ -12,8 +12,11 @@ void main() {
       PdfSelectionChrome.highlightColor,
     );
     expect(themed.textSelectionTheme.selectionColor, Colors.transparent);
+    expect(themed.textSelectionTheme.selectionHandleColor, Colors.transparent);
+    expect(themed.textSelectionTheme.cursorColor, Colors.transparent);
     expect(PdfSelectionChrome.handleColor.a, greaterThan(0));
     expect(PdfSelectionChrome.handleColor, isNot(Colors.transparent));
+    expect(PdfSelectionChrome.handleVisualSize, lessThan(PdfSelectionChrome.handleHitSize));
   });
 
   testWidgets('wrap applies a transparent DefaultSelectionStyle', (
@@ -60,12 +63,12 @@ void main() {
       find.byKey(const Key('pdf-selection-handle')),
     );
     expect(handle.size, const Size(30, 30));
-    expect(
-      PdfSelectionChrome.handlePath(
-        direction: PdfTextDirection.ltr,
-        type: PdfTextSelectionAnchorType.a,
-      ).getBounds(),
-      isNot(Rect.zero),
-    );
+    final bounds = PdfSelectionChrome.handlePath(
+      direction: PdfTextDirection.ltr,
+      type: PdfTextSelectionAnchorType.a,
+    ).getBounds();
+    expect(bounds, isNot(Rect.zero));
+    expect(bounds.width, lessThan(20));
+    expect(bounds.height, lessThan(20));
   });
 }
