@@ -1,3 +1,5 @@
+import 'note_selection.dart';
+
 class Note {
   const Note({
     required this.id,
@@ -9,6 +11,7 @@ class Note {
     required this.colorLabelId,
     required this.createdAt,
     required this.updatedAt,
+    this.selection,
   });
 
   final String id;
@@ -28,6 +31,11 @@ class Note {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  /// When set, the note is anchored to a PDF word/selection, not only X/Y.
+  final NoteSelection? selection;
+
+  bool get isSelectionAnchored => selection != null;
+
   Note copyWith({
     String? id,
     String? documentId,
@@ -38,6 +46,8 @@ class Note {
     String? colorLabelId,
     DateTime? createdAt,
     DateTime? updatedAt,
+    NoteSelection? selection,
+    bool clearSelection = false,
   }) {
     return Note(
       id: id ?? this.id,
@@ -49,6 +59,7 @@ class Note {
       colorLabelId: colorLabelId ?? this.colorLabelId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      selection: clearSelection ? null : (selection ?? this.selection),
     );
   }
 
@@ -63,6 +74,14 @@ class Note {
       'color_label_id': colorLabelId,
       'created_at': createdAt.millisecondsSinceEpoch,
       'updated_at': updatedAt.millisecondsSinceEpoch,
+      ...?selection?.toMap(),
+      if (selection == null) ...{
+        'selected_text': null,
+        'selection_left': null,
+        'selection_top': null,
+        'selection_right': null,
+        'selection_bottom': null,
+      },
     };
   }
 
@@ -77,6 +96,7 @@ class Note {
       colorLabelId: map['color_label_id']! as String,
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['created_at']! as int),
       updatedAt: DateTime.fromMillisecondsSinceEpoch(map['updated_at']! as int),
+      selection: NoteSelection.fromMap(map),
     );
   }
 

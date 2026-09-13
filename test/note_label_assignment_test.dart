@@ -375,6 +375,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
+      // Comment path (after the page menu) still opens the Grok pill.
       expect(find.byKey(const Key('note-composer-pill')), findsOneWidget);
       expect(find.byKey(const Key('note-composer-field')), findsOneWidget);
       expect(find.byKey(const Key('note-composer-mic')), findsOneWidget);

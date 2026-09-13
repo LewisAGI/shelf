@@ -37,7 +37,7 @@ class ShelfDatabase {
     return _factory.openDatabase(
       dbPath,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 2,
         onConfigure: (db) async {
           await db.execute('PRAGMA foreign_keys = ON');
         },
@@ -72,11 +72,29 @@ class ShelfDatabase {
               color_label_id TEXT NOT NULL,
               created_at INTEGER NOT NULL,
               updated_at INTEGER NOT NULL,
+              selected_text TEXT,
+              selection_left REAL,
+              selection_top REAL,
+              selection_right REAL,
+              selection_bottom REAL,
               FOREIGN KEY(document_id) REFERENCES documents(id) ON DELETE CASCADE,
               FOREIGN KEY(color_label_id) REFERENCES color_labels(id)
             )
           ''');
           await _seedLabels(db);
+        },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            await db.execute('ALTER TABLE notes ADD COLUMN selected_text TEXT');
+            await db.execute('ALTER TABLE notes ADD COLUMN selection_left REAL');
+            await db.execute('ALTER TABLE notes ADD COLUMN selection_top REAL');
+            await db.execute(
+              'ALTER TABLE notes ADD COLUMN selection_right REAL',
+            );
+            await db.execute(
+              'ALTER TABLE notes ADD COLUMN selection_bottom REAL',
+            );
+          }
         },
       ),
     );

@@ -3,6 +3,7 @@ import 'package:shelf/data/shelf_database.dart';
 import 'package:shelf/models/color_label.dart';
 import 'package:shelf/models/library_document.dart';
 import 'package:shelf/models/note.dart';
+import 'package:shelf/models/note_selection.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
@@ -55,5 +56,45 @@ void main() {
     expect(loaded.single.colorLabelId, ColorLabel.orangeId);
     expect(loaded.single.x, 0.4);
     expect(loaded.single.page, 3);
+    expect(loaded.single.isSelectionAnchored, isFalse);
+  });
+
+  test('persists a selection-anchored note', () async {
+    await db.upsertDocument(
+      LibraryDocument(
+        id: 'pdf-2',
+        title: 'Selection',
+        storedName: 'pdf-2.pdf',
+        importedAt: DateTime.utc(2026, 9, 13),
+        pageCount: 2,
+      ),
+    );
+    final now = DateTime.utc(2026, 9, 13, 18);
+    await db.upsertNote(
+      Note(
+        id: 'note-sel',
+        documentId: 'pdf-2',
+        page: 1,
+        x: 0.3,
+        y: 0.4,
+        text: 'On this word.',
+        colorLabelId: ColorLabel.orangeId,
+        createdAt: now,
+        updatedAt: now,
+        selection: const NoteSelection(
+          text: 'word',
+          left: 0.2,
+          top: 0.35,
+          right: 0.4,
+          bottom: 0.42,
+        ),
+      ),
+    );
+
+    final loaded = await db.loadNotes();
+    expect(loaded.single.isSelectionAnchored, isTrue);
+    expect(loaded.single.selection?.text, 'word');
+    expect(loaded.single.selection?.left, 0.2);
+    expect(loaded.single.selection?.right, 0.4);
   });
 }

@@ -6,12 +6,16 @@ import 'package:pdfrx/pdfrx.dart';
 import '../data/shelf_store.dart';
 import '../models/library_document.dart';
 import '../models/note.dart';
+import '../models/note_selection.dart';
 import '../services/note_open_sequence.dart';
+import '../services/selection_anchor.dart';
 import '../services/speech_capture.dart';
 import '../theme/shelf_theme.dart';
 import '../widgets/note_editor.dart';
 import '../widgets/note_marker.dart';
 import '../widgets/page_jump_sheet.dart';
+import '../widgets/page_press_menu.dart';
+import '../widgets/selection_comment_bar.dart';
 
 class ReaderScreen extends StatefulWidget {
   const ReaderScreen({
@@ -42,6 +46,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
   String? _focusedNoteId;
   bool _ready = false;
   final Completer<void> _viewerReady = Completer<void>();
+
+  /// pdfrx selection stays off until the user picks **Select text**.
+  bool _selectionEnabled = false;
+  bool _hasActiveSelection = false;
 
   @override
   void initState() {
@@ -233,19 +241,113 @@ class _ReaderScreenState extends State<ReaderScreen> {
     return null;
   }
 
-  /// Long-press on the page creates a note. Long-press on a marker edits it.
-  /// Text selection is disabled so this gesture is not stolen by pdfrx.
+  /// Long-press on a marker edits it. Otherwise show Comment | Select text.
   bool _onPageLongPress(PdfOverlayInteractionDetails details) {
     final existing = _noteAt(details.globalPosition);
     if (existing != null) {
       unawaited(_editNote(existing));
       return true;
     }
-    unawaited(_createNoteAt(details.globalPosition));
+    unawaited(_showPagePressMenu(details.globalPosition));
     return true;
   }
 
-  Future<void> _createNoteAt(Offset globalPosition) async {
+  Future<void> _showPagePressMenu(Offset globalPosition) async {
+    if (!mounted) {
+      return;
+    }
+    final action = await PagePressMenu.show(
+      context,
+      globalPosition: globalPosition,
+    );
+    if (!mounted || action == null) {
+      return;
+    }
+    switch (action) {
+      case PagePressAction.comment:
+        await _createNoteAt(globalPosition);
+      case PagePressAction.selectText:
+        await _beginSelectText(globalPosition);
+    }
+  }
+
+  /// Re-enable pdfrx handles only after the menu, then select the word
+  /// at the press point (not a free-drag grey box).
+  Future<void> _beginSelectText(Offset globalPosition) async {
+    setState(() {
+      _selectionEnabled = true;
+      _hasActiveSelection = false;
+    });
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || !_controller.isReady) {
+      return;
+    }
+    final documentPosition = _controller.globalToDocument(globalPosition);
+    if (documentPosition == null) {
+      return;
+    }
+    try {
+      await _controller.textSelectionDelegate.selectWord(documentPosition);
+    } on Object {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not grab text there. Drag a handle, or tap Done and Comment.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _exitSelectionMode() async {
+    if (_controller.isReady) {
+      try {
+        await _controller.textSelectionDelegate.clearTextSelection();
+      } on Object {
+        // Clearing is best-effort; we still drop selection mode.
+      }
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _selectionEnabled = false;
+      _hasActiveSelection = false;
+    });
+  }
+
+  Future<void> _onTextSelectionChange(PdfTextSelection selection) async {
+    final text = await selection.getSelectedText();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _hasActiveSelection = text.trim().isNotEmpty);
+  }
+
+  void _customizeSelectionMenu(
+    PdfViewerContextMenuBuilderParams params,
+    List<ContextMenuButtonItem> items,
+  ) {
+    items.removeWhere((item) => item.type == ContextMenuButtonType.selectAll);
+    items.insert(
+      0,
+      ContextMenuButtonItem(
+        label: 'Add comment',
+        onPressed: () {
+          ContextMenuController.removeAny();
+          unawaited(_createNoteFromSelection());
+        },
+      ),
+    );
+  }
+
+  Future<void> _createNoteAt(
+    Offset globalPosition, {
+    NoteSelection? selection,
+  }) async {
     if (!_controller.isReady) {
       return;
     }
@@ -260,10 +362,68 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (hit == null || hit.page.width == 0 || hit.page.height == 0) {
       return;
     }
-    final x = Note.normalizeCoord(hit.offset.x / hit.page.width);
-    final y = Note.normalizeCoord(1 - (hit.offset.y / hit.page.height));
-    final page = hit.page.pageNumber;
+    final x = selection?.anchorX ??
+        Note.normalizeCoord(hit.offset.x / hit.page.width);
+    final y = selection?.anchorY ??
+        Note.normalizeCoord(1 - (hit.offset.y / hit.page.height));
+    await _openComposer(
+      page: hit.page.pageNumber,
+      x: x,
+      y: y,
+      selection: selection,
+    );
+  }
 
+  Future<void> _createNoteFromSelection() async {
+    if (!_controller.isReady) {
+      return;
+    }
+    final delegate = _controller.textSelectionDelegate;
+    final text = await delegate.getSelectedText();
+    final ranges = await delegate.getSelectedTextRanges();
+    if (!mounted) {
+      return;
+    }
+    if (ranges.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Select a word first, then add a comment.'),
+        ),
+      );
+      return;
+    }
+    final first = ranges.first;
+    final page = _controller.pages.cast<PdfPage?>().firstWhere(
+      (item) => item?.pageNumber == first.pageNumber,
+      orElse: () => null,
+    );
+    if (page == null || page.width == 0 || page.height == 0) {
+      return;
+    }
+    final selection = noteSelectionFromRanges(
+      ranges: ranges,
+      selectedText: text,
+      pageWidth: page.width,
+      pageHeight: page.height,
+    );
+    if (selection == null) {
+      return;
+    }
+    await _openComposer(
+      page: first.pageNumber,
+      x: selection.anchorX,
+      y: selection.anchorY,
+      selection: selection,
+    );
+    await _exitSelectionMode();
+  }
+
+  Future<void> _openComposer({
+    required int page,
+    required double x,
+    required double y,
+    NoteSelection? selection,
+  }) async {
     final ready = await _speech.ensureReady();
     if (!mounted) {
       return;
@@ -290,6 +450,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       y: result.y,
       text: result.text,
       colorLabelId: result.colorLabelId,
+      selection: selection,
     );
     if (mounted) {
       setState(() => _focusedNoteId = note.id);
@@ -386,11 +547,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 controller: _controller,
                 params: PdfViewerParams(
                   backgroundColor: ShelfColors.white,
-                  // Long-press must open the composer, not PDF text selection
-                  // (the grey box Lewis hit on device).
-                  textSelectionParams: const PdfTextSelectionParams(
-                    enabled: false,
+                  // Selection is off until Select text, so long-press is ours.
+                  textSelectionParams: PdfTextSelectionParams(
+                    enabled: _selectionEnabled,
+                    enableSelectionHandles: true,
+                    showContextMenuAutomatically: true,
+                    onTextSelectionChange: _onTextSelectionChange,
                   ),
+                  customizeContextMenuItems: _customizeSelectionMenu,
                   onViewerReady: _onViewerReady,
                   onPageChanged: (page) {
                     if (page != null && mounted) {
@@ -429,13 +593,29 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   },
                   viewerOverlayBuilder: (context, size, handleLinkTap) {
                     return [
-                      PdfOverlayInteractionRegion(
-                        onLongPress: _onPageLongPress,
-                        child: SizedBox(
-                          width: size.width,
-                          height: size.height,
+                      if (!_selectionEnabled)
+                        PdfOverlayInteractionRegion(
+                          onLongPress: _onPageLongPress,
+                          child: SizedBox(
+                            width: size.width,
+                            height: size.height,
+                          ),
                         ),
-                      ),
+                      if (_selectionEnabled)
+                        Positioned(
+                          top: 12,
+                          left: 12,
+                          right: 12,
+                          child: SelectionCommentBar(
+                            hasSelection: _hasActiveSelection,
+                            onAddComment: () {
+                              unawaited(_createNoteFromSelection());
+                            },
+                            onDone: () {
+                              unawaited(_exitSelectionMode());
+                            },
+                          ),
+                        ),
                     ];
                   },
                 ),
