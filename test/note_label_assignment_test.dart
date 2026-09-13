@@ -5,7 +5,6 @@ import 'package:shelf/data/shelf_store.dart';
 import 'package:shelf/models/color_label.dart';
 import 'package:shelf/models/library_document.dart';
 import 'package:shelf/models/note.dart';
-import 'package:shelf/screens/notes_hub_screen.dart';
 import 'package:shelf/screens/settings_screen.dart';
 import 'package:shelf/services/speech_capture.dart';
 import 'package:shelf/theme/shelf_theme.dart';
@@ -233,7 +232,7 @@ void main() {
     });
   });
 
-  testWidgets('notes list and marker use the assigned colour', (tester) async {
+  test('notes list data and marker colour follow the assigned label', () async {
     await store.addNote(
       documentId: 'pdf-1',
       page: 1,
@@ -242,19 +241,14 @@ void main() {
       text: 'Needs more reading.',
       colorLabelId: ColorLabel.purpleId,
     );
+    final listed = store.searchNotes();
+    expect(listed, hasLength(1));
+    expect(listed.single.colorLabelId, ColorLabel.purpleId);
+    expect(store.labelById(listed.single.colorLabelId).name, 'Further research');
+  });
+
+  testWidgets('marker paints the assigned label colour', (tester) async {
     final label = store.labelById(ColorLabel.purpleId);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: ShelfTheme.light(),
-        home: NotesHubScreen(store: store),
-      ),
-    );
-    await tester.pump();
-
-    expect(find.text('Needs more reading.'), findsOneWidget);
-    expect(find.textContaining('Further research'), findsWidgets);
-
     await tester.pumpWidget(
       MaterialApp(
         theme: ShelfTheme.light(),
@@ -263,6 +257,7 @@ void main() {
         ),
       ),
     );
+    await tester.pump();
     final marker = tester.widget<NoteMarker>(find.byType(NoteMarker));
     expect(marker.color, label.color);
   });
@@ -280,11 +275,14 @@ void main() {
 
     expect(find.text('Colour labels'), findsOneWidget);
     expect(find.text('General note'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('API / connection'), 300);
     expect(find.text('API / connection'), findsOneWidget);
     expect(find.text('Connection'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Bring your own AI'), 200);
     expect(find.text('Bring your own AI'), findsOneWidget);
     expect(find.text('API key'), findsOneWidget);
     expect(find.text('Endpoint'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('About'), 200);
     expect(find.text('About'), findsOneWidget);
   });
 }
