@@ -79,6 +79,7 @@ void main() {
 
   tearDown(() async {
     ExportShare.override = null;
+    ExportShare.lastSharePositionOrigin = null;
     PdfOutlineSource.loadForDocumentOverride = null;
     await db.close();
   });
@@ -102,6 +103,11 @@ void main() {
 
   testWidgets('library card menu lists export, send, and view', (tester) async {
     await pumpLibrary(tester);
+    expect(find.byKey(const Key('library-highlight-tip')), findsOneWidget);
+    expect(
+      find.text(LibraryScreen.highlightTip),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const Key('library-card-menu-pdf-1')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
@@ -109,6 +115,37 @@ void main() {
     expect(find.text('Export comments'), findsOneWidget);
     expect(find.text('Send to connected AI'), findsOneWidget);
     expect(find.text('View all comments'), findsOneWidget);
+  });
+
+  testWidgets('Export comments shares from a non-zero ⋮ button origin', (
+    tester,
+  ) async {
+    final shared = <String>[];
+    ExportShare.override = (paths, subject) async {
+      shared
+        ..clear()
+        ..addAll(paths);
+      expect(subject, contains('Notes on method'));
+    };
+    await pumpLibrary(tester);
+
+    await tester.tap(find.byKey(const Key('library-card-menu-pdf-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('library-card-export-comments')));
+    await tester.pumpAndSettle();
+
+    expect(shared, hasLength(2));
+    expect(shared.first, endsWith('Notes-on-method-notes.json'));
+    expect(shared.last, endsWith('Notes-on-method-notes-schema.md'));
+    final origin = ExportShare.lastSharePositionOrigin;
+    expect(origin, isNotNull);
+    expect(origin, isNot(Rect.zero));
+    expect(origin!.width, greaterThan(0));
+    expect(origin.height, greaterThan(0));
+    expect(
+      ShareOrigin.isUsable(origin, tester.view.physicalSize),
+      isTrue,
+    );
   });
 
   test('Export comments writes JSON and schema then shares them', () async {
@@ -133,6 +170,8 @@ void main() {
     expect(shared, hasLength(2));
     expect(shared.first, endsWith('Notes-on-method-notes.json'));
     expect(shared.last, endsWith('Notes-on-method-notes-schema.md'));
+    expect(ExportShare.lastSharePositionOrigin, isNot(Rect.zero));
+    expect(ExportShare.lastSharePositionOrigin!.width, greaterThan(0));
     expect(
       File(shared.first).readAsStringSync(),
       contains('Come back to this diagram.'),
