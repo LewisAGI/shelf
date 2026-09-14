@@ -116,7 +116,7 @@ class SettingsScreen extends StatelessWidget {
               _SettingsSection(
                 title: 'About',
                 description:
-                    'Shelf keeps PDFs and notes on this iPhone only. No cloud sync and no accounts in this version.',
+                    'Shelf keeps PDFs and notes on this phone only. No cloud sync and no accounts in this version.',
                 children: const [],
               ),
             ],

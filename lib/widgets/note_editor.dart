@@ -152,7 +152,7 @@ class _NoteEditorState extends State<NoteEditor> {
       setState(() {
         _status =
             widget.speech.unavailableReason ??
-            'Voice dictation needs a physical iPhone. Type the note instead.';
+            'Voice dictation needs a physical phone. Type the note instead.';
       });
       return;
     }

@@ -32,15 +32,25 @@ class MemoryAiSecureStorage implements AiSecureStorage {
   }
 }
 
-/// iOS Keychain (and the platform equivalent) via flutter_secure_storage.
+/// iOS Keychain / Android Keystore via flutter_secure_storage.
 class KeychainAiSecureStorage implements AiSecureStorage {
+  /// iOS: first-unlock-this-device Keychain item.
+  static const IOSOptions iosOptions = IOSOptions(
+    accessibility: KeychainAccessibility.first_unlock_this_device,
+  );
+
+  /// Android: RSA-OAEP key wrap + AES-GCM, keys in the Android Keystore.
+  /// `encryptedSharedPreferences` is deprecated in v10 — omit it.
+  static const AndroidOptions androidOptions = AndroidOptions(
+    resetOnError: true,
+  );
+
   KeychainAiSecureStorage({FlutterSecureStorage? storage})
     : _storage =
           storage ??
           const FlutterSecureStorage(
-            iOptions: IOSOptions(
-              accessibility: KeychainAccessibility.first_unlock_this_device,
-            ),
+            iOptions: iosOptions,
+            aOptions: androidOptions,
           );
 
   final FlutterSecureStorage _storage;

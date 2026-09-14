@@ -80,6 +80,7 @@ void main() {
   tearDown(() async {
     ExportShare.override = null;
     ExportShare.lastSharePositionOrigin = null;
+    ExportShare.lastShareAttachedOrigin = false;
     PdfOutlineSource.loadForDocumentOverride = null;
     await db.close();
   });
