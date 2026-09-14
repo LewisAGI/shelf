@@ -71,17 +71,25 @@ void main() {
     expect(find.text('Save key'), findsOneWidget);
     expect(find.byKey(const Key('settings-ai-toggle-key')), findsOneWidget);
     expect(find.text('Model'), findsOneWidget);
-    expect(find.text('Custom'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('settings-ai-provider')));
     await tester.pumpAndSettle();
     expect(find.text('Grok (xAI)'), findsWidgets);
     expect(find.text('Anthropic'), findsWidgets);
-    await tester.tap(find.byKey(const Key('settings-ai-provider-grok')));
+    await tester.tap(find.text('Grok (xAI)').last);
     await tester.pumpAndSettle();
     expect(ai.provider, AiProvider.grok);
     expect(ai.model, 'grok-4.6');
     expect(find.text('grok-4.6'), findsWidgets);
+
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('settings-ai-model')),
+      200,
+      scrollable: pageScroll,
+    );
+    await tester.tap(find.byKey(const Key('settings-ai-model')));
+    await tester.pumpAndSettle();
+    expect(find.text('Custom'), findsWidgets);
   });
 
   testWidgets('provider switch keeps each saved key', (tester) async {
@@ -101,7 +109,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('settings-ai-provider')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('settings-ai-provider-anthropic')));
+    await tester.tap(find.text('Anthropic').last);
     await tester.pumpAndSettle();
     expect(ai.provider, AiProvider.anthropic);
     expect(ai.hasApiKey, isFalse);
@@ -116,7 +124,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('settings-ai-provider')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('settings-ai-provider-openai')));
+    await tester.tap(find.text('OpenAI').last);
     await tester.pumpAndSettle();
     expect(ai.connection.apiKey, 'sk-openai-test-not-real');
     expect(ai.model, 'gpt-4o-mini');

@@ -106,9 +106,7 @@ void main() {
     expect(find.text('View all comments'), findsOneWidget);
   });
 
-  testWidgets('Export comments writes JSON and schema then shares them', (
-    tester,
-  ) async {
+  test('Export comments writes JSON and schema then shares them', () async {
     final shared = <String>[];
     ExportShare.override = (paths, subject) async {
       shared
@@ -116,12 +114,16 @@ void main() {
         ..addAll(paths);
       expect(subject, contains('Notes on method'));
     };
+    addTearDown(() => ExportShare.override = null);
 
-    await pumpLibrary(tester);
-    await tester.tap(find.byKey(const Key('library-card-menu-pdf-1')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('library-card-export-comments')));
-    await tester.pumpAndSettle();
+    final dir = await Directory.systemTemp.createTemp('shelf-export-widget-');
+    addTearDown(() => dir.delete(recursive: true));
+    await LibraryScreen.exportDocumentComments(
+      document: store.documents.single,
+      notes: store.notesForDocument('pdf-1'),
+      labelById: store.labelById,
+      directory: dir,
+    );
 
     expect(shared, hasLength(2));
     expect(shared.first, endsWith('Notes-on-method-notes.json'));

@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../data/shelf_store.dart';
 import '../models/ai_provider.dart';
+import '../models/color_label.dart';
 import '../models/library_document.dart';
 import '../models/note.dart';
 import '../services/export_share.dart';
@@ -43,20 +44,33 @@ class LibraryScreen extends StatelessWidget {
     }
   }
 
+  static Future<void> exportDocumentComments({
+    required LibraryDocument document,
+    required List<Note> notes,
+    required ColorLabel Function(String id) labelById,
+    Directory? directory,
+  }) async {
+    final files = await NotesExport.writeFiles(
+      document: document,
+      notes: notes,
+      labelById: labelById,
+      directory: directory,
+    );
+    await ExportShare.files(
+      files,
+      subject: 'Shelf notes — ${document.title}',
+    );
+  }
+
   Future<void> _exportComments(
     BuildContext context,
     LibraryDocument document,
   ) async {
-    final notes = store.notesForDocument(document.id);
     try {
-      final files = await NotesExport.writeFiles(
+      await exportDocumentComments(
         document: document,
-        notes: notes,
+        notes: store.notesForDocument(document.id),
         labelById: store.labelById,
-      );
-      await ExportShare.files(
-        files,
-        subject: 'Shelf notes — ${document.title}',
       );
     } on Object catch (error) {
       if (!context.mounted) {
