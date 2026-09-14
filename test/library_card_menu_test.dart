@@ -79,6 +79,7 @@ void main() {
 
   tearDown(() async {
     ExportShare.override = null;
+    ExportShare.lastSharePositionOrigin = null;
     PdfOutlineSource.loadForDocumentOverride = null;
     await db.close();
   });
@@ -102,6 +103,11 @@ void main() {
 
   testWidgets('library card menu lists export, send, and view', (tester) async {
     await pumpLibrary(tester);
+    expect(find.byKey(const Key('library-highlight-tip')), findsOneWidget);
+    expect(
+      find.text(LibraryScreen.highlightTip),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const Key('library-card-menu-pdf-1')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
@@ -109,6 +115,25 @@ void main() {
     expect(find.text('Export comments'), findsOneWidget);
     expect(find.text('Send to connected AI'), findsOneWidget);
     expect(find.text('View all comments'), findsOneWidget);
+  });
+
+  testWidgets('library ⋮ button box is a usable non-zero share origin', (
+    tester,
+  ) async {
+    await pumpLibrary(tester);
+    final button = find.byKey(const Key('library-card-menu-pdf-1'));
+    expect(button, findsOneWidget);
+    final box = tester.renderObject<RenderBox>(button);
+    expect(box.hasSize, isTrue);
+    expect(box.size.width, greaterThan(0));
+    expect(box.size.height, greaterThan(0));
+    final fromBox = box.localToGlobal(Offset.zero) & box.size;
+    const view = Size(400, 900);
+    expect(ShareOrigin.isUsable(fromBox, view), isTrue);
+    expect(
+      ShareOrigin.resolve(preferred: fromBox, viewSize: view),
+      fromBox,
+    );
   });
 
   test('Export comments writes JSON and schema then shares them', () async {
@@ -133,6 +158,8 @@ void main() {
     expect(shared, hasLength(2));
     expect(shared.first, endsWith('Notes-on-method-notes.json'));
     expect(shared.last, endsWith('Notes-on-method-notes-schema.md'));
+    expect(ExportShare.lastSharePositionOrigin, isNot(Rect.zero));
+    expect(ExportShare.lastSharePositionOrigin!.width, greaterThan(0));
     expect(
       File(shared.first).readAsStringSync(),
       contains('Come back to this diagram.'),
