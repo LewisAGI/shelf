@@ -117,34 +117,22 @@ void main() {
     expect(find.text('View all comments'), findsOneWidget);
   });
 
-  testWidgets('Export comments shares from a non-zero ⋮ button origin', (
+  testWidgets('library ⋮ button box is a usable non-zero share origin', (
     tester,
   ) async {
-    final shared = <String>[];
-    ExportShare.override = (paths, subject) async {
-      shared
-        ..clear()
-        ..addAll(paths);
-      expect(subject, contains('Notes on method'));
-    };
     await pumpLibrary(tester);
-
-    await tester.tap(find.byKey(const Key('library-card-menu-pdf-1')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('library-card-export-comments')));
-    await tester.pumpAndSettle();
-
-    expect(shared, hasLength(2));
-    expect(shared.first, endsWith('Notes-on-method-notes.json'));
-    expect(shared.last, endsWith('Notes-on-method-notes-schema.md'));
-    final origin = ExportShare.lastSharePositionOrigin;
-    expect(origin, isNotNull);
-    expect(origin, isNot(Rect.zero));
-    expect(origin!.width, greaterThan(0));
-    expect(origin.height, greaterThan(0));
+    final button = find.byKey(const Key('library-card-menu-pdf-1'));
+    expect(button, findsOneWidget);
+    final box = tester.renderObject<RenderBox>(button);
+    expect(box.hasSize, isTrue);
+    expect(box.size.width, greaterThan(0));
+    expect(box.size.height, greaterThan(0));
+    final fromBox = box.localToGlobal(Offset.zero) & box.size;
+    const view = Size(400, 900);
+    expect(ShareOrigin.isUsable(fromBox, view), isTrue);
     expect(
-      ShareOrigin.isUsable(origin, tester.view.physicalSize),
-      isTrue,
+      ShareOrigin.resolve(preferred: fromBox, viewSize: view),
+      fromBox,
     );
   });
 

@@ -58,6 +58,11 @@ class LibraryScreen extends StatelessWidget {
     GlobalKey? shareKey,
     Rect? sharePositionOrigin,
   }) async {
+    final origin = ShareOrigin.resolve(
+      preferred: sharePositionOrigin,
+      context: shareContext,
+      key: shareKey,
+    );
     final files = await NotesExport.writeFiles(
       document: document,
       notes: notes,
@@ -68,9 +73,7 @@ class LibraryScreen extends StatelessWidget {
     await ExportShare.files(
       files,
       subject: 'Shelf notes — ${document.title}',
-      shareContext: shareContext,
-      shareKey: shareKey,
-      sharePositionOrigin: sharePositionOrigin,
+      sharePositionOrigin: origin,
     );
   }
 
