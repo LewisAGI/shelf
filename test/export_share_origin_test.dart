@@ -8,6 +8,7 @@ void main() {
   tearDown(() {
     ExportShare.override = null;
     ExportShare.lastSharePositionOrigin = null;
+    ExportShare.lastShareAttachedOrigin = false;
   });
 
   test('rejects a zero rect and supplies a non-zero fallback inside the view', () {
@@ -28,7 +29,7 @@ void main() {
     expect(origin.bottom, lessThanOrEqualTo(view.height));
   });
 
-  test('rejects a missing origin and still stays inside iPhone-sized bounds', () {
+  test('rejects a missing origin and still stays inside phone-sized bounds', () {
     final origin = ShareOrigin.resolve();
     expect(origin.width, greaterThan(0));
     expect(origin.height, greaterThan(0));
@@ -129,5 +130,37 @@ void main() {
     expect(origin.width, 48);
     expect(origin.height, 48);
     expect(ShareOrigin.isUsable(origin, const Size(393, 852)), isTrue);
+  });
+
+  test('Android omits sharePositionOrigin; iOS keeps a valid one', () async {
+    expect(
+      ShareOrigin.requiresSharePositionOrigin(TargetPlatform.android),
+      isFalse,
+    );
+    expect(ShareOrigin.requiresSharePositionOrigin(TargetPlatform.iOS), isTrue);
+
+    ExportShare.override = (_, _) async {};
+    final dir = await Directory.systemTemp.createTemp('shelf-share-android-');
+    addTearDown(() => dir.delete(recursive: true));
+    final file = File('${dir.path}/notes.json')..writeAsStringSync('{}');
+
+    await ExportShare.files(
+      [file],
+      subject: 'Shelf notes',
+      sharePositionOrigin: Rect.zero,
+      platform: TargetPlatform.android,
+    );
+    expect(ExportShare.lastShareAttachedOrigin, isFalse);
+    expect(ExportShare.lastSharePositionOrigin, isNotNull);
+    expect(ExportShare.lastSharePositionOrigin!.width, greaterThan(0));
+
+    await ExportShare.files(
+      [file],
+      subject: 'Shelf notes',
+      sharePositionOrigin: Rect.zero,
+      platform: TargetPlatform.iOS,
+    );
+    expect(ExportShare.lastShareAttachedOrigin, isTrue);
+    expect(ExportShare.lastSharePositionOrigin, isNot(Rect.zero));
   });
 }

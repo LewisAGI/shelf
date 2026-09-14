@@ -82,7 +82,8 @@ class LibraryScreen extends StatelessWidget {
     LibraryDocument document,
   ) async {
     // Snapshot the ⋮ button before the async outline/file work. iOS share
-    // rejects a zero origin; this is the menu anchor (or a safe fallback).
+    // rejects a zero origin; Android omits origin. This is the menu anchor
+    // (or a safe fallback) when the platform needs one.
     final origin = ShareOrigin.resolve(context: context);
     try {
       final outline = await PdfOutlineSource.loadForDocument(
@@ -331,7 +332,7 @@ class _EmptyLibrary extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Import a learning PDF from Files. Notes you dictate stay on this phone.',
+              'Import a learning PDF from your files. Notes you dictate stay on this phone.',
               textAlign: TextAlign.center,
               style: TextStyle(color: ShelfColors.muted, height: 1.4),
             ),

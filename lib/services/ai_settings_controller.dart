@@ -4,7 +4,7 @@ import '../models/ai_provider.dart';
 import 'ai_client.dart';
 import 'ai_secure_storage.dart';
 
-/// Loads and saves BYO AI settings. Keys are Keychain-backed **per provider**.
+/// Loads and saves BYO AI settings. Keys are Keychain / Keystore-backed **per provider**.
 class AiSettingsController extends ChangeNotifier {
   AiSettingsController({
     required this._storage,
@@ -64,12 +64,12 @@ class AiSettingsController extends ChangeNotifier {
 
   String get connectionStatusLabel {
     if (!hasApiKey) {
-      return 'On this iPhone — add your own API key';
+      return 'On this phone — add your own API key';
     }
     if (_lastVerifyOk) {
       return 'Key saved — last test succeeded';
     }
-    return 'Key saved in Keychain — not tested yet';
+    return 'Key saved in secure storage — not tested yet';
   }
 
   Future<void> load() async {
@@ -117,7 +117,7 @@ class AiSettingsController extends ChangeNotifier {
     }
     _apiKey = trimmed;
     await _storage.write(apiKeyStorageKey(_provider), trimmed);
-    _status = 'API key saved in the iPhone Keychain.';
+    _status = 'API key saved in secure storage on this phone.';
     _lastVerifyOk = false;
     notifyListeners();
   }
@@ -125,7 +125,7 @@ class AiSettingsController extends ChangeNotifier {
   Future<void> clearApiKey() async {
     _apiKey = '';
     await _storage.delete(apiKeyStorageKey(_provider));
-    _status = 'API key removed from this iPhone.';
+    _status = 'API key removed from this phone.';
     _lastVerifyOk = false;
     notifyListeners();
   }

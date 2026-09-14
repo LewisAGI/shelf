@@ -1,14 +1,16 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:share_plus/share_plus.dart';
 
-/// iOS 26 (and iPad popovers) reject a missing or zero [sharePositionOrigin].
+/// iOS (and iPad UIPopover) reject a missing or zero [sharePositionOrigin].
+/// Android's share sheet ignores origin — omit it there.
 ///
 /// Resolve a real button/menu-anchor rect, or a safe non-zero fallback
 /// inside the source view. Never returns [Rect.zero].
 class ShareOrigin {
-  static const Size _iphoneFallbackView = Size(393, 852);
+  static const Size _fallbackView = Size(393, 852);
   static const double _fallbackBox = 44;
 
   /// True when [rect] has positive size and sits inside [viewSize].
@@ -30,10 +32,8 @@ class ShareOrigin {
 
   /// Centre of [viewSize], at least 1×1, fully inside the view.
   static Rect fallback(Size viewSize) {
-    final width = viewSize.width > 0 ? viewSize.width : _iphoneFallbackView.width;
-    final height = viewSize.height > 0
-        ? viewSize.height
-        : _iphoneFallbackView.height;
+    final width = viewSize.width > 0 ? viewSize.width : _fallbackView.width;
+    final height = viewSize.height > 0 ? viewSize.height : _fallbackView.height;
     final size = _fallbackBox.clamp(1.0, width).clamp(1.0, height).toDouble();
     final left = ((width - size) / 2).clamp(0.0, width - size);
     final top = ((height - size) / 2).clamp(0.0, height - size);
@@ -89,10 +89,8 @@ class ShareOrigin {
   }
 
   static Rect fitInView(Rect rect, Size viewSize) {
-    final width = viewSize.width > 0 ? viewSize.width : _iphoneFallbackView.width;
-    final height = viewSize.height > 0
-        ? viewSize.height
-        : _iphoneFallbackView.height;
+    final width = viewSize.width > 0 ? viewSize.width : _fallbackView.width;
+    final height = viewSize.height > 0 ? viewSize.height : _fallbackView.height;
     final boxWidth = rect.width.clamp(1.0, width).toDouble();
     final boxHeight = rect.height.clamp(1.0, height).toDouble();
     final left = rect.left.clamp(0.0, width - boxWidth).toDouble();
@@ -114,7 +112,13 @@ class ShareOrigin {
         }
       }
     }
-    return _iphoneFallbackView;
+    return _fallbackView;
+  }
+
+  /// iOS / iPad popovers need a valid origin. Android must not rely on one.
+  static bool requiresSharePositionOrigin([TargetPlatform? platform]) {
+    final resolved = platform ?? defaultTargetPlatform;
+    return resolved == TargetPlatform.iOS || resolved == TargetPlatform.macOS;
   }
 }
 
@@ -122,8 +126,11 @@ class ShareOrigin {
 class ExportShare {
   static Future<void> Function(List<String> paths, String subject)? override;
 
-  /// Last origin passed to (or prepared for) the share sheet. Tests read this.
+  /// Last origin resolved for the share sheet. Tests read this.
   static Rect? lastSharePositionOrigin;
+
+  /// Whether the last share attached [sharePositionOrigin] (iOS popover only).
+  static bool lastShareAttachedOrigin = false;
 
   static Future<void> files(
     List<File> files, {
@@ -131,6 +138,7 @@ class ExportShare {
     BuildContext? shareContext,
     GlobalKey? shareKey,
     Rect? sharePositionOrigin,
+    TargetPlatform? platform,
   }) async {
     final origin = ShareOrigin.resolve(
       preferred: sharePositionOrigin,
@@ -138,6 +146,8 @@ class ExportShare {
       key: shareKey,
     );
     lastSharePositionOrigin = origin;
+    final attachOrigin = ShareOrigin.requiresSharePositionOrigin(platform);
+    lastShareAttachedOrigin = attachOrigin;
     final hook = override;
     final paths = files.map((file) => file.path).toList();
     if (hook != null) {
@@ -154,7 +164,7 @@ class ExportShare {
       ShareParams(
         files: [for (final file in files) XFile(file.path)],
         subject: subject,
-        sharePositionOrigin: origin,
+        sharePositionOrigin: attachOrigin ? origin : null,
       ),
     );
   }

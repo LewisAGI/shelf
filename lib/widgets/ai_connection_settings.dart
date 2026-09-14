@@ -7,7 +7,7 @@ import 'ai_scope.dart';
 
 const _customModelValue = '__shelf_custom_model__';
 
-/// BYO AI block. Keys go to Keychain per provider; Shelf never spends house tokens.
+/// BYO AI block. Keys go to Keychain / Android Keystore per provider; Shelf never spends house tokens.
 class AiConnectionSettings extends StatefulWidget {
   const AiConnectionSettings({super.key});
 
@@ -98,7 +98,7 @@ class _AiConnectionSettingsState extends State<AiConnectionSettings> {
         return _SettingsSection(
           title: 'Connect your own AI',
           description:
-              'Bring your own key. Shelf calls your provider from this iPhone — there is no house-paid AI and no shared backend spend. Switching provider keeps each key and model.',
+              'Bring your own key. Shelf calls your provider from this phone — there is no house-paid AI and no shared backend spend. Switching provider keeps each key and model.',
           children: [
             _SettingsCard(
               child: Column(
@@ -162,7 +162,7 @@ class _AiConnectionSettingsState extends State<AiConnectionSettings> {
                       decoration: InputDecoration(
                         labelText: 'API key',
                         hintText: ai.hasApiKey
-                            ? 'Saved in Keychain — paste to replace'
+                            ? 'Saved in secure storage — paste to replace'
                             : 'Paste your provider key',
                         suffixIcon: IconButton(
                           key: const Key('settings-ai-toggle-key'),

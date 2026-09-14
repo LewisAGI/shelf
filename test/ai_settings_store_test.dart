@@ -159,4 +159,21 @@ void main() {
       'sk-legacy-test-not-real',
     );
   });
+
+  test('status copy is phone-neutral, not iPhone/Keychain-only', () async {
+    final storage = MemoryAiSecureStorage();
+    final controller = AiSettingsController(
+      storage: storage,
+      client: FakeAiClient(),
+    );
+    await controller.load();
+    expect(controller.connectionStatusLabel, contains('this phone'));
+    expect(controller.connectionStatusLabel, isNot(contains('iPhone')));
+
+    await controller.saveApiKey('sk-test-not-a-real-key');
+    expect(controller.status, contains('secure storage'));
+    expect(controller.status, isNot(contains('Keychain')));
+    expect(controller.status, isNot(contains('iPhone')));
+    expect(controller.connectionStatusLabel, contains('secure storage'));
+  });
 }

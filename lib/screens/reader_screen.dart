@@ -577,7 +577,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       sections: _sections,
       voiceHint: ready
           ? 'Orange is selected until you pick another colour.'
-          : 'Voice dictation is limited on the Simulator. Type the note, or use a physical iPhone.',
+          : 'Voice dictation is limited on simulators and emulators. Type the note, or use a physical phone.',
     );
     if (result == null || result.delete || result.text.isEmpty) {
       return;
