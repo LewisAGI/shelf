@@ -4,7 +4,7 @@ import '../models/ai_provider.dart';
 import 'ai_client.dart';
 import 'ai_secure_storage.dart';
 
-/// Loads and saves BYO AI settings. The API key is Keychain-backed.
+/// Loads and saves BYO AI settings. Keys are Keychain-backed **per provider**.
 class AiSettingsController extends ChangeNotifier {
   AiSettingsController({
     required this._storage,
@@ -12,9 +12,20 @@ class AiSettingsController extends ChangeNotifier {
   }) : _client = client ?? HttpAiClient();
 
   static const providerKey = 'shelf.ai.provider';
+
+  /// Legacy single-slot keys from PR #7. Migrated into the active provider.
   static const baseUrlKey = 'shelf.ai.base_url';
   static const modelKey = 'shelf.ai.model';
   static const apiKeyKey = 'shelf.ai.api_key';
+
+  static String apiKeyStorageKey(AiProvider provider) =>
+      'shelf.ai.${provider.id}.api_key';
+
+  static String modelStorageKey(AiProvider provider) =>
+      'shelf.ai.${provider.id}.model';
+
+  static String baseUrlStorageKey(AiProvider provider) =>
+      'shelf.ai.${provider.id}.base_url';
 
   final AiSecureStorage _storage;
   final AiClient _client;
@@ -36,6 +47,8 @@ class AiSettingsController extends ChangeNotifier {
   bool get busy => _busy;
   String? get status => _status;
   bool get lastVerifyOk => _lastVerifyOk;
+
+  bool get isCustomModel => !_provider.knownModels.contains(_model);
 
   AiConnection get connection => AiConnection(
     provider: _provider,
@@ -61,45 +74,38 @@ class AiSettingsController extends ChangeNotifier {
 
   Future<void> load() async {
     final providerId = await _storage.read(providerKey);
-    final baseUrl = await _storage.read(baseUrlKey);
-    final model = await _storage.read(modelKey);
-    final apiKey = await _storage.read(apiKeyKey);
     _provider = AiProviderX.fromId(providerId);
-    _baseUrl = (baseUrl == null || baseUrl.isEmpty)
-        ? _provider.presetBaseUrl
-        : baseUrl;
-    _model = (model == null || model.isEmpty) ? _provider.presetModel : model;
-    _apiKey = apiKey ?? '';
+    await _migrateLegacyInto(_provider);
+    await _readProviderSlot(_provider);
     _ready = true;
     notifyListeners();
   }
 
   Future<void> setProvider(AiProvider provider) async {
+    if (provider == _provider) {
+      return;
+    }
     _provider = provider;
-    if (!provider.allowsCustomBaseUrl || _baseUrl.trim().isEmpty) {
-      _baseUrl = provider.presetBaseUrl;
-      await _storage.write(baseUrlKey, _baseUrl);
-    }
-    if (_model.trim().isEmpty ||
-        AiProvider.values.any((item) => item.presetModel == _model)) {
-      _model = provider.presetModel;
-      await _storage.write(modelKey, _model);
-    }
     await _storage.write(providerKey, provider.id);
+    await _readProviderSlot(provider);
     _lastVerifyOk = false;
+    _status = null;
     notifyListeners();
   }
 
   Future<void> setBaseUrl(String value) async {
     _baseUrl = value.trim();
-    await _storage.write(baseUrlKey, _baseUrl);
+    await _storage.write(baseUrlStorageKey(_provider), _baseUrl);
     _lastVerifyOk = false;
     notifyListeners();
   }
 
   Future<void> setModel(String value) async {
     _model = value.trim();
-    await _storage.write(modelKey, _model);
+    if (_model.isEmpty) {
+      _model = _provider.presetModel;
+    }
+    await _storage.write(modelStorageKey(_provider), _model);
     notifyListeners();
   }
 
@@ -110,7 +116,7 @@ class AiSettingsController extends ChangeNotifier {
       return;
     }
     _apiKey = trimmed;
-    await _storage.write(apiKeyKey, trimmed);
+    await _storage.write(apiKeyStorageKey(_provider), trimmed);
     _status = 'API key saved in the iPhone Keychain.';
     _lastVerifyOk = false;
     notifyListeners();
@@ -118,7 +124,7 @@ class AiSettingsController extends ChangeNotifier {
 
   Future<void> clearApiKey() async {
     _apiKey = '';
-    await _storage.delete(apiKeyKey);
+    await _storage.delete(apiKeyStorageKey(_provider));
     _status = 'API key removed from this iPhone.';
     _lastVerifyOk = false;
     notifyListeners();
@@ -136,7 +142,46 @@ class AiSettingsController extends ChangeNotifier {
     return result;
   }
 
-  Future<String> askAbout(AiAskRequest request) {
+  Future<AiAskOutcome> askAbout(AiAskRequest request) {
     return _client.askAbout(connection, request);
+  }
+
+  Future<void> _readProviderSlot(AiProvider provider) async {
+    final apiKey = await _storage.read(apiKeyStorageKey(provider));
+    final model = await _storage.read(modelStorageKey(provider));
+    final baseUrl = await _storage.read(baseUrlStorageKey(provider));
+    _apiKey = apiKey ?? '';
+    _model = (model == null || model.isEmpty) ? provider.presetModel : model;
+    if (provider.allowsCustomBaseUrl) {
+      _baseUrl = baseUrl ?? '';
+    } else {
+      _baseUrl = (baseUrl == null || baseUrl.isEmpty)
+          ? provider.presetBaseUrl
+          : baseUrl;
+    }
+  }
+
+  Future<void> _migrateLegacyInto(AiProvider provider) async {
+    final slottedKey = await _storage.read(apiKeyStorageKey(provider));
+    if (slottedKey == null || slottedKey.isEmpty) {
+      final legacyKey = await _storage.read(apiKeyKey);
+      if (legacyKey != null && legacyKey.isNotEmpty) {
+        await _storage.write(apiKeyStorageKey(provider), legacyKey);
+      }
+    }
+    final slottedModel = await _storage.read(modelStorageKey(provider));
+    if (slottedModel == null || slottedModel.isEmpty) {
+      final legacyModel = await _storage.read(modelKey);
+      if (legacyModel != null && legacyModel.isNotEmpty) {
+        await _storage.write(modelStorageKey(provider), legacyModel);
+      }
+    }
+    final slottedUrl = await _storage.read(baseUrlStorageKey(provider));
+    if (slottedUrl == null || slottedUrl.isEmpty) {
+      final legacyUrl = await _storage.read(baseUrlKey);
+      if (legacyUrl != null && legacyUrl.isNotEmpty) {
+        await _storage.write(baseUrlStorageKey(provider), legacyUrl);
+      }
+    }
   }
 }

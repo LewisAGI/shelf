@@ -5,6 +5,9 @@ import '../models/note.dart';
 import '../services/ai_client.dart';
 import '../theme/shelf_theme.dart';
 import 'ai_scope.dart';
+import 'ai_send_scope.dart';
+
+typedef PdfBytesLoader = Future<List<int>?> Function();
 
 /// One in-app action: send the current note and/or selected page text
 /// to the user's provider and show the reply.
@@ -16,6 +19,11 @@ class AskAboutNoteButton extends StatelessWidget {
     this.documentTitle,
     this.page,
     this.compact = false,
+    this.hideWhenNoKey = false,
+    this.offerPdf = false,
+    this.loadPdf,
+    this.pdfFileName,
+    this.notes = const [],
   });
 
   /// Read at tap time so the composer field is current.
@@ -25,20 +33,34 @@ class AskAboutNoteButton extends StatelessWidget {
   final int? page;
   final bool compact;
 
+  /// Composer sheet: hide the control when the user has no key (they cannot
+  /// see the snackbar behind the modal). Notes hub keeps the button.
+  final bool hideWhenNoKey;
+  final bool offerPdf;
+  final PdfBytesLoader? loadPdf;
+  final String? pdfFileName;
+  final List<AiNoteSnippet> notes;
+
   static AiAskRequest requestFor({
     required String noteText,
     String? selectedText,
     String? documentTitle,
     int? page,
     Note? note,
+    List<AiNoteSnippet> notes = const [],
+    List<int>? pdfBytes,
+    String? pdfFileName,
+    String? pdfSkippedReason,
   }) {
     return AiAskRequest(
-      noteText: noteText.trim().isNotEmpty
-          ? noteText
-          : (note?.text ?? ''),
+      noteText: noteText.trim().isNotEmpty ? noteText : (note?.text ?? ''),
       selectedText: selectedText ?? note?.selection?.text,
       documentTitle: documentTitle,
       page: page ?? note?.page,
+      notes: notes,
+      pdfBytes: pdfBytes,
+      pdfFileName: pdfFileName,
+      pdfSkippedReason: pdfSkippedReason,
     );
   }
 
@@ -49,6 +71,10 @@ class AskAboutNoteButton extends StatelessWidget {
     String? documentTitle,
     int? page,
     Note? note,
+    List<AiNoteSnippet> notes = const [],
+    bool offerPdf = false,
+    PdfBytesLoader? loadPdf,
+    String? pdfFileName,
   }) async {
     final ai = AiScope.maybeOf(context);
     if (ai == null || !ai.hasApiKey) {
@@ -64,17 +90,46 @@ class AskAboutNoteButton extends StatelessWidget {
       );
       return;
     }
+    List<int>? pdfBytes;
+    String? pdfSkippedReason;
+    if (offerPdf && loadPdf != null) {
+      final scope = await AiSendScopeDialog.show(context);
+      if (!context.mounted || scope == null) {
+        return;
+      }
+      if (scope == AiSendScope.includePdf) {
+        if (!ai.provider.supportsPdfAttachment) {
+          pdfSkippedReason = ai.provider.pdfUnsupportedReason;
+        } else {
+          pdfBytes = await loadPdf();
+          if (pdfBytes == null || pdfBytes.isEmpty) {
+            pdfSkippedReason = 'Could not read the PDF on this phone.';
+            pdfBytes = null;
+          }
+        }
+      }
+    }
     final request = requestFor(
       noteText: noteText,
       selectedText: selectedText,
       documentTitle: documentTitle,
       page: page,
       note: note,
+      notes: notes,
+      pdfBytes: pdfBytes,
+      pdfFileName: pdfFileName,
+      pdfSkippedReason: pdfSkippedReason,
     );
     if (!request.hasAnythingToAsk) {
+      if (!context.mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Write a note or select text first.')),
       );
+      return;
+    }
+    if (!context.mounted) {
       return;
     }
     await AskAboutNoteSheet.show(
@@ -90,11 +145,19 @@ class AskAboutNoteButton extends StatelessWidget {
       selectedText: selectedText,
       documentTitle: documentTitle,
       page: page,
+      notes: notes,
+      offerPdf: offerPdf,
+      loadPdf: loadPdf,
+      pdfFileName: pdfFileName,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final ai = AiScope.maybeOf(context);
+    if (hideWhenNoKey && (ai == null || !ai.hasApiKey)) {
+      return const SizedBox.shrink();
+    }
     if (compact) {
       return TextButton(
         key: const Key('ask-about-note'),
@@ -117,11 +180,11 @@ class AskAboutNoteButton extends StatelessWidget {
 class AskAboutNoteSheet extends StatefulWidget {
   const AskAboutNoteSheet({super.key, required this.ask});
 
-  final Future<String> Function() ask;
+  final Future<AiAskOutcome> Function() ask;
 
   static Future<void> show(
     BuildContext context, {
-    required Future<String> Function() ask,
+    required Future<AiAskOutcome> Function() ask,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -139,6 +202,7 @@ class AskAboutNoteSheet extends StatefulWidget {
 class _AskAboutNoteSheetState extends State<AskAboutNoteSheet> {
   String? _reply;
   String? _error;
+  String? _pdfNotice;
   var _loading = true;
 
   @override
@@ -149,12 +213,13 @@ class _AskAboutNoteSheetState extends State<AskAboutNoteSheet> {
 
   Future<void> _run() async {
     try {
-      final reply = await widget.ask();
+      final outcome = await widget.ask();
       if (!mounted) {
         return;
       }
       setState(() {
-        _reply = reply;
+        _reply = outcome.reply;
+        _pdfNotice = outcome.pdfNotice;
         _loading = false;
       });
     } on AiClientException catch (error) {
@@ -205,7 +270,15 @@ class _AskAboutNoteSheetState extends State<AskAboutNoteSheet> {
               _error!,
               style: const TextStyle(color: ShelfColors.muted, height: 1.4),
             )
-          else
+          else ...[
+            if (_pdfNotice != null) ...[
+              Text(
+                key: const Key('ask-about-note-pdf-notice'),
+                'PDF not attached: $_pdfNotice',
+                style: const TextStyle(color: ShelfColors.muted, height: 1.4),
+              ),
+              const SizedBox(height: 8),
+            ],
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 360),
               child: SingleChildScrollView(
@@ -216,6 +289,7 @@ class _AskAboutNoteSheetState extends State<AskAboutNoteSheet> {
                 ),
               ),
             ),
+          ],
           const SizedBox(height: 16),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(),

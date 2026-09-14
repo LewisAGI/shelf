@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../data/shelf_store.dart';
@@ -8,21 +10,49 @@ import '../widgets/colour_label_chip.dart';
 import 'reader_screen.dart';
 
 class NotesHubScreen extends StatefulWidget {
-  const NotesHubScreen({super.key, required this.store});
+  const NotesHubScreen({
+    super.key,
+    required this.store,
+    this.searchController,
+  });
 
   final ShelfStore store;
+  final TextEditingController? searchController;
 
   @override
   State<NotesHubScreen> createState() => _NotesHubScreenState();
 }
 
 class _NotesHubScreenState extends State<NotesHubScreen> {
-  final _query = TextEditingController();
+  late final TextEditingController _query;
+  var _ownsQuery = false;
   String? _labelId;
 
   @override
+  void initState() {
+    super.initState();
+    final incoming = widget.searchController;
+    if (incoming != null) {
+      _query = incoming;
+    } else {
+      _query = TextEditingController();
+      _ownsQuery = true;
+    }
+    _query.addListener(_onQueryChanged);
+  }
+
+  void _onQueryChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
   void dispose() {
-    _query.dispose();
+    _query.removeListener(_onQueryChanged);
+    if (_ownsQuery) {
+      _query.dispose();
+    }
     super.dispose();
   }
 
@@ -42,8 +72,8 @@ class _NotesHubScreenState extends State<NotesHubScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                 child: TextField(
+                  key: const Key('notes-hub-search'),
                   controller: _query,
-                  onChanged: (_) => setState(() {}),
                   decoration: const InputDecoration(
                     hintText: 'Search notes, titles, labels…',
                     prefixIcon: Icon(Icons.search),
@@ -152,6 +182,18 @@ class _NoteTile extends StatelessWidget {
               documentTitle: document?.title,
               page: note.page,
               note: note,
+              offerPdf: document != null,
+              pdfFileName: document == null ? null : '${document.title}.pdf',
+              loadPdf: document == null
+                  ? null
+                  : () async {
+                      try {
+                        final path = await store.pdfPath(document);
+                        return await File(path).readAsBytes();
+                      } on Object {
+                        return null;
+                      }
+                    },
             );
           },
         ),

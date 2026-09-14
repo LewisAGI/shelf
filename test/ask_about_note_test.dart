@@ -118,6 +118,7 @@ void main() {
 
     expect(find.byKey(const Key('ask-about-note')), findsOneWidget);
     expect(find.byType(Slider), findsNothing);
+    expect(find.text('Add your own API key'), findsNothing);
     await tester.tap(find.byKey(const Key('ask-about-note')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
@@ -130,6 +131,31 @@ void main() {
     expect(fake.lastAsk!.documentTitle, 'Notes on method');
     expect(fake.lastAsk!.page, 2);
     expect(fake.lastAskConnection?.apiKey, 'sk-test-not-a-real-key');
+  });
+
+  testWidgets('composer hides Ask about this note when no API key is set', (
+    tester,
+  ) async {
+    await pumpScoped(
+      tester,
+      Scaffold(
+        body: NoteEditor(
+          labels: ColorLabel.seedDefaults(),
+          defaultLabelId: ColorLabel.orangeId,
+          speech: SpeechCapture(),
+          page: 1,
+          x: 0.2,
+          y: 0.3,
+          documentTitle: 'Notes on method',
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('note-composer-pill')), findsOneWidget);
+    expect(find.byKey(const Key('ask-about-note')), findsNothing);
+    expect(find.text('Ask about this note'), findsNothing);
+    expect(find.textContaining('Add your own API key'), findsNothing);
+    expect(fake.lastAsk, isNull);
   });
 
   testWidgets('Ask without a key points at Settings and does not call HTTP', (
@@ -176,15 +202,17 @@ void main() {
 
     final pageScroll = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(
-      find.text('Bring your own AI'),
+      find.text('Connect your own AI'),
       300,
       scrollable: pageScroll,
     );
-    expect(find.text('API / connection'), findsOneWidget);
-    expect(find.text('Connection'), findsOneWidget);
+    expect(find.text('Connect your own AI'), findsOneWidget);
+    expect(find.text('Connection'), findsNothing);
+    expect(find.text('API / connection'), findsNothing);
     expect(find.text('Provider'), findsOneWidget);
     expect(find.text('API key'), findsOneWidget);
-    expect(find.text('Endpoint'), findsOneWidget);
+    expect(find.text('Save key'), findsOneWidget);
+    expect(find.text('Grok (xAI)'), findsNothing);
     expect(find.text('Coming in a later release'), findsNothing);
     expect(find.byType(Slider), findsNothing);
 
@@ -207,9 +235,12 @@ void main() {
 
     expect(find.text('Connected. Provider listed 4 models.'), findsOneWidget);
     expect(ai.hasApiKey, isTrue);
-    expect(storage.snapshot[AiSettingsController.apiKeyKey], isNotEmpty);
     expect(
-      storage.snapshot[AiSettingsController.apiKeyKey],
+      storage.snapshot[AiSettingsController.apiKeyStorageKey(ai.provider)],
+      isNotEmpty,
+    );
+    expect(
+      storage.snapshot[AiSettingsController.apiKeyStorageKey(ai.provider)],
       isNot(contains('sk-live')),
     );
     expect(fake.lastVerify?.apiKey, 'sk-test-not-a-real-key');

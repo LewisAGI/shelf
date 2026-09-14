@@ -1,14 +1,29 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../data/shelf_store.dart';
+import '../models/ai_provider.dart';
+import '../models/color_label.dart';
+import '../models/library_document.dart';
+import '../models/note.dart';
+import '../services/export_share.dart';
+import '../services/notes_export.dart';
 import '../theme/shelf_theme.dart';
+import '../widgets/ask_about_note.dart';
 import 'reader_screen.dart';
 
 class LibraryScreen extends StatelessWidget {
-  const LibraryScreen({super.key, required this.store});
+  const LibraryScreen({
+    super.key,
+    required this.store,
+    this.onViewAllComments,
+  });
 
   final ShelfStore store;
+  final ValueChanged<String>? onViewAllComments;
 
   Future<void> _import(BuildContext context) async {
     final document = await store.importPdf();
@@ -27,6 +42,109 @@ class LibraryScreen extends StatelessWidget {
         ),
       );
     }
+  }
+
+  static Future<void> exportDocumentComments({
+    required LibraryDocument document,
+    required List<Note> notes,
+    required ColorLabel Function(String id) labelById,
+    Directory? directory,
+  }) async {
+    final files = await NotesExport.writeFiles(
+      document: document,
+      notes: notes,
+      labelById: labelById,
+      directory: directory,
+    );
+    await ExportShare.files(
+      files,
+      subject: 'Shelf notes — ${document.title}',
+    );
+  }
+
+  Future<void> _exportComments(
+    BuildContext context,
+    LibraryDocument document,
+  ) async {
+    try {
+      await exportDocumentComments(
+        document: document,
+        notes: store.notesForDocument(document.id),
+        labelById: store.labelById,
+      );
+    } on Object catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not export comments: $error')),
+      );
+    }
+  }
+
+  Future<void> _sendToAi(
+    BuildContext context,
+    LibraryDocument document,
+  ) async {
+    final notes = store.notesForDocument(document.id);
+    if (notes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This book has no comments yet.')),
+      );
+      return;
+    }
+    final snippets = [
+      for (final note in _sortedNotes(notes))
+        AiNoteSnippet(
+          text: note.text,
+          page: note.page,
+          selectedText: note.selection?.text,
+          labelName: store.labelById(note.colorLabelId).name,
+        ),
+    ];
+    await AskAboutNoteButton.open(
+      context,
+      noteText: 'Notes from ${document.title}',
+      documentTitle: document.title,
+      notes: snippets,
+      offerPdf: true,
+      pdfFileName: '${document.title}.pdf',
+      loadPdf: () async {
+        try {
+          final path = await store.pdfPath(document);
+          return await File(path).readAsBytes();
+        } on Object {
+          return null;
+        }
+      },
+    );
+  }
+
+  void _onMenu(
+    BuildContext context,
+    LibraryDocument document,
+    String value,
+  ) {
+    switch (value) {
+      case 'export':
+        unawaited(_exportComments(context, document));
+      case 'send':
+        unawaited(_sendToAi(context, document));
+      case 'view':
+        onViewAllComments?.call(document.title);
+    }
+  }
+
+  static List<Note> _sortedNotes(List<Note> notes) {
+    final sorted = [...notes]
+      ..sort((a, b) {
+        final page = a.page.compareTo(b.page);
+        if (page != 0) {
+          return page;
+        }
+        return a.createdAt.compareTo(b.createdAt);
+      });
+    return sorted;
   }
 
   @override
@@ -103,6 +221,28 @@ class LibraryScreen extends StatelessWidget {
                           '${document.pageCount} pages',
                         '$noteCount ${noteCount == 1 ? 'note' : 'notes'}',
                       ].join(' · '),
+                    ),
+                    trailing: PopupMenuButton<String>(
+                      key: Key('library-card-menu-${document.id}'),
+                      tooltip: 'Book actions',
+                      onSelected: (value) => _onMenu(context, document, value),
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          key: Key('library-card-export-comments'),
+                          value: 'export',
+                          child: Text('Export comments'),
+                        ),
+                        PopupMenuItem(
+                          key: Key('library-card-send-to-ai'),
+                          value: 'send',
+                          child: Text('Send to connected AI'),
+                        ),
+                        PopupMenuItem(
+                          key: Key('library-card-view-comments'),
+                          value: 'view',
+                          child: Text('View all comments'),
+                        ),
+                      ],
                     ),
                     onTap: () {
                       Navigator.of(context).push(

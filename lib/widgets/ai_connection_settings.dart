@@ -5,7 +5,9 @@ import '../services/ai_settings_controller.dart';
 import '../theme/shelf_theme.dart';
 import 'ai_scope.dart';
 
-/// Connection + BYO AI block. Keys go to Keychain; Shelf never spends house tokens.
+const _customModelValue = '__shelf_custom_model__';
+
+/// BYO AI block. Keys go to Keychain per provider; Shelf never spends house tokens.
 class AiConnectionSettings extends StatefulWidget {
   const AiConnectionSettings({super.key});
 
@@ -15,7 +17,7 @@ class AiConnectionSettings extends StatefulWidget {
 
 class _AiConnectionSettingsState extends State<AiConnectionSettings> {
   late final TextEditingController _endpoint;
-  late final TextEditingController _model;
+  late final TextEditingController _customModel;
   late final TextEditingController _apiKey;
   AiSettingsController? _ai;
   var _obscureKey = true;
@@ -24,7 +26,7 @@ class _AiConnectionSettingsState extends State<AiConnectionSettings> {
   void initState() {
     super.initState();
     _endpoint = TextEditingController();
-    _model = TextEditingController();
+    _customModel = TextEditingController();
     _apiKey = TextEditingController();
   }
 
@@ -45,7 +47,7 @@ class _AiConnectionSettingsState extends State<AiConnectionSettings> {
   void dispose() {
     _ai?.removeListener(_copyFromController);
     _endpoint.dispose();
-    _model.dispose();
+    _customModel.dispose();
     _apiKey.dispose();
     super.dispose();
   }
@@ -61,48 +63,24 @@ class _AiConnectionSettingsState extends State<AiConnectionSettings> {
         selection: TextSelection.collapsed(offset: ai.baseUrl.length),
       );
     }
-    if (_model.text != ai.model) {
-      _model.value = TextEditingValue(
+    if (ai.isCustomModel && _customModel.text != ai.model) {
+      _customModel.value = TextEditingValue(
         text: ai.model,
         selection: TextSelection.collapsed(offset: ai.model.length),
       );
     }
   }
 
-  Future<void> _pickProvider(BuildContext context) async {
-    final ai = AiScope.maybeOf(context);
-    if (ai == null) {
-      return;
+  Future<void> _commitPending(AiSettingsController ai) async {
+    if (_apiKey.text.trim().isNotEmpty) {
+      await ai.saveApiKey(_apiKey.text);
+      _apiKey.clear();
     }
-    final chosen = await showModalBottomSheet<AiProvider>(
-      context: context,
-      backgroundColor: ShelfColors.white,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final provider in AiProvider.values)
-                ListTile(
-                  key: Key('settings-ai-provider-${provider.id}'),
-                  title: Text(provider.label),
-                  subtitle: Text(
-                    provider == AiProvider.openaiCompatible
-                        ? 'Any server that speaks the OpenAI API'
-                        : provider.presetBaseUrl,
-                  ),
-                  trailing: provider == ai.provider
-                      ? const Icon(Icons.check, color: ShelfColors.orange)
-                      : null,
-                  onTap: () => Navigator.of(context).pop(provider),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-    if (chosen != null) {
-      await ai.setProvider(chosen);
+    if (ai.provider.allowsCustomBaseUrl) {
+      await ai.setBaseUrl(_endpoint.text);
+    }
+    if (ai.isCustomModel) {
+      await ai.setModel(_customModel.text);
     }
   }
 
@@ -115,46 +93,48 @@ class _AiConnectionSettingsState extends State<AiConnectionSettings> {
     return ListenableBuilder(
       listenable: ai,
       builder: (context, _) {
+        final known = ai.provider.knownModels;
+        final modelValue = known.contains(ai.model) ? ai.model : _customModelValue;
         return _SettingsSection(
-          title: 'API / connection',
+          title: 'Connect your own AI',
           description:
-              'Bring your own key. Shelf calls your provider from this iPhone — there is no house-paid AI and no shared backend spend.',
+              'Bring your own key. Shelf calls your provider from this iPhone — there is no house-paid AI and no shared backend spend. Switching provider keeps each key and model.',
           children: [
-            const _SettingsSubhead(title: 'Connection'),
             _SettingsCard(
               child: Column(
                 children: [
-                  ListTile(
-                    title: const Text('Status'),
-                    subtitle: Text(ai.connectionStatusLabel),
-                  ),
-                  const Divider(height: 1, indent: 16, endIndent: 16),
-                  ListTile(
-                    title: const Text('Endpoint'),
-                    subtitle: Text(ai.endpointLabel),
-                  ),
-                  const Divider(height: 1, indent: 16, endIndent: 16),
-                  const ListTile(
-                    title: Text('Sync'),
-                    subtitle: Text('Off — this device is the library'),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            const _SettingsSubhead(title: 'Bring your own AI'),
-            _SettingsCard(
-              child: Column(
-                children: [
-                  ListTile(
+                  Padding(
                     key: const Key('settings-ai-provider'),
-                    title: const Text('Provider'),
-                    subtitle: Text(ai.provider.label),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => _pickProvider(context),
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                    child: DropdownButtonFormField<AiProvider>(
+                      key: ValueKey('settings-ai-provider-field-${ai.provider.id}'),
+                      initialValue: ai.provider,
+                      decoration: const InputDecoration(
+                        labelText: 'Provider',
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        filled: false,
+                      ),
+                      items: [
+                        for (final provider in AiProvider.values)
+                          DropdownMenuItem(
+                            key: Key('settings-ai-provider-${provider.id}'),
+                            value: provider,
+                            child: Text(provider.label),
+                          ),
+                      ],
+                      onChanged: ai.busy
+                          ? null
+                          : (value) async {
+                              if (value != null) {
+                                await ai.setProvider(value);
+                              }
+                            },
+                    ),
                   ),
-                  const Divider(height: 1, indent: 16, endIndent: 16),
-                  if (ai.provider.allowsCustomBaseUrl)
+                  if (ai.provider.allowsCustomBaseUrl) ...[
+                    const Divider(height: 1, indent: 16, endIndent: 16),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                       child: TextField(
@@ -168,11 +148,9 @@ class _AiConnectionSettingsState extends State<AiConnectionSettings> {
                         ),
                         onChanged: (value) => ai.setBaseUrl(value),
                       ),
-                    )
-                  else
-                    const SizedBox.shrink(),
-                  if (ai.provider.allowsCustomBaseUrl)
-                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    ),
+                  ],
+                  const Divider(height: 1, indent: 16, endIndent: 16),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                     child: TextField(
@@ -187,6 +165,7 @@ class _AiConnectionSettingsState extends State<AiConnectionSettings> {
                             ? 'Saved in Keychain — paste to replace'
                             : 'Paste your provider key',
                         suffixIcon: IconButton(
+                          key: const Key('settings-ai-toggle-key'),
                           tooltip: _obscureKey ? 'Show key' : 'Hide key',
                           onPressed: () =>
                               setState(() => _obscureKey = !_obscureKey),
@@ -212,9 +191,7 @@ class _AiConnectionSettingsState extends State<AiConnectionSettings> {
                                     await ai.saveApiKey(_apiKey.text);
                                     _apiKey.clear();
                                   },
-                            child: Text(
-                              ai.hasApiKey ? 'Replace key' : 'Save key',
-                            ),
+                            child: const Text('Save key'),
                           ),
                         ),
                         if (ai.hasApiKey) ...[
@@ -235,17 +212,65 @@ class _AiConnectionSettingsState extends State<AiConnectionSettings> {
                   ),
                   const Divider(height: 1, indent: 16, endIndent: 16),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                    child: TextField(
-                      key: const Key('settings-ai-model'),
-                      controller: _model,
-                      autocorrect: false,
+                    key: const Key('settings-ai-model'),
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                    child: DropdownButtonFormField<String>(
+                      key: ValueKey(
+                        'settings-ai-model-field-${ai.provider.id}-$modelValue',
+                      ),
+                      initialValue: modelValue,
                       decoration: const InputDecoration(
                         labelText: 'Model',
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        filled: false,
                       ),
-                      onChanged: (value) => ai.setModel(value),
+                      items: [
+                        for (final model in known)
+                          DropdownMenuItem(value: model, child: Text(model)),
+                        const DropdownMenuItem(
+                          value: _customModelValue,
+                          child: Text('Custom'),
+                        ),
+                      ],
+                      onChanged: ai.busy
+                          ? null
+                          : (value) async {
+                              if (value == null) {
+                                return;
+                              }
+                              if (value == _customModelValue) {
+                                final current = ai.isCustomModel
+                                    ? ai.model
+                                    : '';
+                                _customModel.text = current;
+                                await ai.setModel(
+                                  current.isEmpty ? 'custom-model' : current,
+                                );
+                              } else {
+                                await ai.setModel(value);
+                              }
+                            },
                     ),
                   ),
+                  if (ai.isCustomModel)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: TextField(
+                        key: const Key('settings-ai-custom-model'),
+                        controller: _customModel,
+                        autocorrect: false,
+                        decoration: const InputDecoration(
+                          labelText: 'Custom model',
+                          hintText: 'provider-model-id',
+                          helperText:
+                              'A custom name may error if the provider does not recognise it.',
+                          helperMaxLines: 3,
+                        ),
+                        onChanged: (value) => ai.setModel(value),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -255,14 +280,7 @@ class _AiConnectionSettingsState extends State<AiConnectionSettings> {
               onPressed: ai.busy
                   ? null
                   : () async {
-                      if (_apiKey.text.trim().isNotEmpty) {
-                        await ai.saveApiKey(_apiKey.text);
-                        _apiKey.clear();
-                      }
-                      if (ai.provider.allowsCustomBaseUrl) {
-                        await ai.setBaseUrl(_endpoint.text);
-                      }
-                      await ai.setModel(_model.text);
+                      await _commitPending(ai);
                       await ai.verify();
                     },
               child: Text(ai.busy ? 'Testing…' : 'Test connection'),
@@ -312,20 +330,6 @@ class _SettingsSection extends StatelessWidget {
         if (children.isNotEmpty) const SizedBox(height: 16),
         ...children,
       ],
-    );
-  }
-}
-
-class _SettingsSubhead extends StatelessWidget {
-  const _SettingsSubhead({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(title, style: Theme.of(context).textTheme.titleMedium),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -329,21 +330,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
     setState(() => _hasActiveSelection = text.trim().isNotEmpty);
   }
 
-  void _customizeSelectionMenu(
-    PdfViewerContextMenuBuilderParams params,
-    List<ContextMenuButtonItem> items,
-  ) {
-    items.removeWhere((item) => item.type == ContextMenuButtonType.selectAll);
-    items.insert(
-      0,
-      ContextMenuButtonItem(
-        label: 'Add comment',
-        onPressed: () {
-          ContextMenuController.removeAny();
-          unawaited(_createNoteFromSelection());
-        },
-      ),
-    );
+  Future<List<int>?> _loadPdfBytes() async {
+    try {
+      final path = await _pdfPath;
+      return await File(path).readAsBytes();
+    } on Object {
+      return null;
+    }
   }
 
   Future<void> _createNoteAt(
@@ -440,6 +433,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
       y: y,
       documentTitle: widget.document.title,
       quotedText: selection?.text,
+      pdfFileName: '${widget.document.title}.pdf',
+      loadPdf: _loadPdfBytes,
       voiceHint: ready
           ? 'Orange is selected until you pick another colour.'
           : 'Voice dictation is limited on the Simulator. Type the note, or use a physical iPhone.',
@@ -471,6 +466,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
       note: note,
       documentTitle: widget.document.title,
       quotedText: note.selection?.text,
+      pdfFileName: '${widget.document.title}.pdf',
+      loadPdf: _loadPdfBytes,
     );
     if (result == null) {
       return;
@@ -552,26 +549,27 @@ class _ReaderScreenState extends State<ReaderScreen> {
               if (path == null) {
                 return const Center(child: CircularProgressIndicator());
               }
-              // Transparent canvas fill + compact handles. pdfrx has no
-              // other selection-fill hook; magnifier is a leftover box.
-              return PdfSelectionChrome.wrap(
-                PdfViewer.file(
-                  path,
-                  controller: _controller,
-                  params: PdfViewerParams(
-                    backgroundColor: ShelfColors.white,
-                    // Selection is off until Select text, so long-press is ours.
-                    textSelectionParams: PdfTextSelectionParams(
-                      enabled: _selectionEnabled,
-                      enableSelectionHandles: true,
-                      showContextMenuAutomatically: true,
-                      onTextSelectionChange: _onTextSelectionChange,
-                      buildSelectionHandle: PdfSelectionChrome.buildHandle,
-                      magnifier: const PdfViewerSelectionMagnifierParams(
-                        enabled: false,
-                      ),
-                    ),
-                    customizeContextMenuItems: _customizeSelectionMenu,
+                    // Orange canvas fill + compact orange handles. The system
+                    // selection toolbar was the empty dark callout — keep it off.
+                    return PdfSelectionChrome.wrap(
+                      PdfViewer.file(
+                        path,
+                        controller: _controller,
+                        params: PdfViewerParams(
+                          backgroundColor: ShelfColors.white,
+                          // Selection is off until Select text, so long-press is ours.
+                          textSelectionParams: PdfTextSelectionParams(
+                            enabled: _selectionEnabled,
+                            enableSelectionHandles: true,
+                            showContextMenuAutomatically: false,
+                            onTextSelectionChange: _onTextSelectionChange,
+                            buildSelectionHandle: PdfSelectionChrome.buildHandle,
+                            magnifier: PdfViewerSelectionMagnifierParams(
+                              enabled: false,
+                              shouldShowMagnifier: () => false,
+                            ),
+                          ),
+                          buildContextMenu: PdfSelectionChrome.hideContextMenu,
                     onViewerReady: _onViewerReady,
                     onPageChanged: (page) {
                       if (page != null && mounted) {

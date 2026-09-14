@@ -16,6 +16,20 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+  final _notesQuery = TextEditingController();
+
+  @override
+  void dispose() {
+    _notesQuery.dispose();
+    super.dispose();
+  }
+
+  void _openNotesForBook(String title) {
+    _notesQuery
+      ..text = title
+      ..selection = TextSelection.collapsed(offset: title.length);
+    setState(() => _index = 1);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,8 +37,14 @@ class _HomeShellState extends State<HomeShell> {
       body: IndexedStack(
         index: _index,
         children: [
-          LibraryScreen(store: widget.store),
-          NotesHubScreen(store: widget.store),
+          LibraryScreen(
+            store: widget.store,
+            onViewAllComments: _openNotesForBook,
+          ),
+          NotesHubScreen(
+            store: widget.store,
+            searchController: _notesQuery,
+          ),
           SettingsScreen(store: widget.store),
         ],
       ),
