@@ -44,7 +44,7 @@ First-run iOS build: open `ios/Runner.xcworkspace` in Xcode if you need to pick 
 8. **Notes** tab: keyword search, filter by colour label, tap a row to open that PDF on that page. The reader waits until the viewer is ready, jumps to the page, brings the marker into view, then opens the editor — no fixed delay.
 9. **Settings**: edit the seeded labels (orange = general note, purple = further research), add your own colours and meanings. They persist with the local library.
 10. **Connect your own AI** (Settings): pick OpenAI, Anthropic, Grok (xAI), or OpenAI-compatible. Each provider keeps its own Keychain key and model. **Test connection** hits `/v1/models` (or a tiny chat completion if that 404s). From a note, **Ask about this note** appears only when a key is saved (the Notes hub still offers Ask and can point you at Settings). Include PDF? vs Notes only when sending a note or a whole book.
-11. Library card **⋮**: **Export comments** (JSON + a short markdown schema, via the share sheet), **Send to connected AI** (all notes for that book, with Include PDF?), **View all comments** (Notes hub, search filled with the book title).
+11. Library card **⋮**: **Export comments** (JSON + a short markdown schema, via the share sheet), **Send to connected AI** (all notes for that book, with Include PDF?), **View all comments** (Notes hub, search filled with the book title). Export / Send / Ask include the **heading and subheading** the note sits under, resolved at send/export time from the current PDF outline (bookmarks) or page-title fallback.
 
 ## What’s stubbed / limited
 
@@ -53,7 +53,7 @@ First-run iOS build: open `ios/Runner.xcworkspace` in Xcode if you need to pick 
 | **Speech on Simulator** | Apple Speech is unreliable or unavailable in the Simulator. The editor stays usable: type the note. On a **physical iPhone**, grant Speech Recognition + Microphone when prompted (`Info.plist` strings are already set). If device dictation still fails, add the Speech Recognition capability on the Runner target in Xcode. |
 | **Android** | Out of scope. The project is iOS-only (`flutter create --platforms=ios`). |
 | **Cloud / accounts / App Store** | Not started. Library is local SQLite + sandbox files. BYO AI is device-to-provider only. |
-| **Export JSON/MD** | Library card ⋮ → Export comments. JSON of that book's notes plus a short `.md` schema. Shared through the system share sheet (Save to Files is there). |
+| **Export JSON/MD** | Library card ⋮ → Export comments. JSON of that book's notes (including `heading` / `subheading` when the PDF has outline or title lines) plus a short `.md` schema. Shared through the system share sheet (Save to Files is there). |
 | **Commercial polish** | Intentionally light: readable British English chrome, white canvas, orange accents. |
 
 ## Persistence
@@ -61,7 +61,7 @@ First-run iOS build: open `ios/Runner.xcworkspace` in Xcode if you need to pick 
 SQLite (`sqflite`) in the app database directory:
 
 - `documents` — imported PDFs
-- `notes` — `document_id`, 1-based `page`, normalised `x`/`y` (0–1, origin top-left), `text`, `color_label_id`, timestamps, and optional selection-anchor fields (`selected_text`, `selection_left`/`top`/`right`/`bottom`)
+- `notes` — `document_id`, 1-based `page`, normalised `x`/`y` (0–1, origin top-left), `text`, `color_label_id`, timestamps, and optional selection-anchor fields (`selected_text`, `selection_left`/`top`/`right`/`bottom`). Heading/subheading are **not** stored; they are resolved from the PDF at export / Ask / Send time.
 - `color_labels` — user-defined colour + meaning; one row marked `is_default` (seeded orange)
 
 PDF bytes live under the application **Documents** directory, not iCloud.
@@ -73,4 +73,4 @@ flutter analyze
 flutter test
 ```
 
-Unit tests cover filler cleanup, the note / colour-label persistence model (`toMap` / `fromMap`, default orange seed, coordinate clamping), selection-anchored notes (quoted text + bounds), `FirstTapTracker` (legacy double-tap pairing), the notes-hub open sequence, the Grok-style composer (pill, mic, 4-line field, colour square; no X/Y sliders), the long-press **Comment | Select text** menu, Keychain-backed per-provider BYO AI settings including Grok, verify-connection success/fail, Ask-about-note (hidden on the composer without a key), library card export/send/view, and orange PDF selection chrome.
+Unit tests cover filler cleanup, the note / colour-label persistence model (`toMap` / `fromMap`, default orange seed, coordinate clamping), selection-anchored notes (quoted text + bounds), `FirstTapTracker` (legacy double-tap pairing), the notes-hub open sequence, the Grok-style composer (pill, mic, 4-line field, colour square; no X/Y sliders), the long-press **Comment | Select text** menu, Keychain-backed per-provider BYO AI settings including Grok, verify-connection success/fail, Ask-about-note (hidden on the composer without a key), library card export/send/view, orange PDF selection chrome, and heading/subheading resolution on export JSON/.md and Ask/Send payloads.

@@ -5,12 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../data/shelf_store.dart';
-import '../models/ai_provider.dart';
 import '../models/color_label.dart';
 import '../models/library_document.dart';
 import '../models/note.dart';
 import '../services/export_share.dart';
 import '../services/notes_export.dart';
+import '../services/pdf_outline_source.dart';
+import '../services/pdf_section_resolver.dart';
 import '../theme/shelf_theme.dart';
 import '../widgets/ask_about_note.dart';
 import 'reader_screen.dart';
@@ -49,12 +50,14 @@ class LibraryScreen extends StatelessWidget {
     required List<Note> notes,
     required ColorLabel Function(String id) labelById,
     Directory? directory,
+    List<PdfSection> outline = const [],
   }) async {
     final files = await NotesExport.writeFiles(
       document: document,
       notes: notes,
       labelById: labelById,
       directory: directory,
+      outline: outline,
     );
     await ExportShare.files(
       files,
@@ -67,10 +70,15 @@ class LibraryScreen extends StatelessWidget {
     LibraryDocument document,
   ) async {
     try {
+      final outline = await PdfOutlineSource.loadForDocument(
+        document,
+        store.pdfPath,
+      );
       await exportDocumentComments(
         document: document,
         notes: store.notesForDocument(document.id),
         labelById: store.labelById,
+        outline: outline,
       );
     } on Object catch (error) {
       if (!context.mounted) {
@@ -93,20 +101,16 @@ class LibraryScreen extends StatelessWidget {
       );
       return;
     }
-    final snippets = [
-      for (final note in _sortedNotes(notes))
-        AiNoteSnippet(
-          text: note.text,
-          page: note.page,
-          selectedText: note.selection?.text,
-          labelName: store.labelById(note.colorLabelId).name,
-        ),
-    ];
     await AskAboutNoteButton.open(
       context,
       noteText: 'Notes from ${document.title}',
       documentTitle: document.title,
-      notes: snippets,
+      notesToResolve: notes,
+      labelById: store.labelById,
+      loadSections: () => PdfOutlineSource.loadForDocument(
+        document,
+        store.pdfPath,
+      ),
       offerPdf: true,
       pdfFileName: '${document.title}.pdf',
       loadPdf: () async {
@@ -133,18 +137,6 @@ class LibraryScreen extends StatelessWidget {
       case 'view':
         onViewAllComments?.call(document.title);
     }
-  }
-
-  static List<Note> _sortedNotes(List<Note> notes) {
-    final sorted = [...notes]
-      ..sort((a, b) {
-        final page = a.page.compareTo(b.page);
-        if (page != 0) {
-          return page;
-        }
-        return a.createdAt.compareTo(b.createdAt);
-      });
-    return sorted;
   }
 
   @override

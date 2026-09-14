@@ -7,6 +7,7 @@ import 'package:shelf/models/library_document.dart';
 import 'package:shelf/models/note.dart';
 import 'package:shelf/models/note_selection.dart';
 import 'package:shelf/services/notes_export.dart';
+import 'package:shelf/services/pdf_section_resolver.dart';
 
 void main() {
   final document = LibraryDocument(
@@ -57,6 +58,8 @@ void main() {
     expect(row['y'], 0.4);
     expect(row['text'], 'Come back to this diagram.');
     expect(row['selected_text'], 'method');
+    expect(row['heading'], isNull);
+    expect(row['subheading'], isNull);
     expect(row['created_at'], '2026-09-13T10:00:00.000Z');
     final label = row['label']! as Map<String, Object?>;
     expect(label['name'], 'General note');
@@ -68,7 +71,59 @@ void main() {
     expect(md, contains(NotesExport.schemaId));
     expect(md, contains('selected_text'));
     expect(md, contains('page'));
+    expect(md, contains('heading'));
+    expect(md, contains('subheading'));
+    expect(md, contains('resolved at export time'));
     expect(md, contains('Notes on method'));
+  });
+
+  test('JSON export and snippets include heading and subheading from outline', () {
+    final outline = PdfSectionResolver.flattenDraft(const [
+      OutlineDraft(
+        title: 'Chapter 3 Method',
+        page: 2,
+        y: 0.05,
+        children: [
+          OutlineDraft(title: '3.2 Standing remark', page: 2, y: 0.10),
+        ],
+      ),
+    ]);
+    ColorLabel labelById(String id) =>
+        ColorLabel.seedDefaults().firstWhere((item) => item.id == id);
+
+    final payload = NotesExport.payload(
+      document: document,
+      notes: [note],
+      labelById: labelById,
+      exportedAt: DateTime.utc(2026, 9, 14),
+      outline: outline,
+    );
+    final row = (payload['notes']! as List<dynamic>).single as Map<String, Object?>;
+    expect(row['heading'], 'Chapter 3 Method');
+    expect(row['subheading'], '3.2 Standing remark');
+
+    final snippets = NotesExport.snippets(
+      notes: [note],
+      labelById: labelById,
+      outline: outline,
+    );
+    expect(snippets, hasLength(1));
+    expect(snippets.single.heading, 'Chapter 3 Method');
+    expect(snippets.single.subheading, '3.2 Standing remark');
+    expect(snippets.single.selectedText, 'method');
+  });
+
+  test('JSON export leaves heading fields null when the PDF has no outline', () {
+    final payload = NotesExport.payload(
+      document: document,
+      notes: [note],
+      labelById: (id) => ColorLabel.seedDefaults().firstWhere((item) => item.id == id),
+      outline: const [],
+    );
+    final row = (payload['notes']! as List<dynamic>).single as Map<String, Object?>;
+    expect(row.containsKey('heading'), isTrue);
+    expect(row['heading'], isNull);
+    expect(row['subheading'], isNull);
   });
 
   test('writeFiles creates JSON and markdown companions', () async {
@@ -85,6 +140,9 @@ void main() {
     expect(files.first.path, endsWith('Notes-on-method-notes.json'));
     expect(files.last.path, endsWith('Notes-on-method-notes-schema.md'));
     expect(files.first.readAsStringSync(), contains('"selected_text": "method"'));
+    expect(files.first.readAsStringSync(), contains('"heading": null'));
     expect(files.last.readAsStringSync(), contains('shelf-notes-v1'));
+    expect(files.last.readAsStringSync(), contains('heading'));
+    expect(files.last.readAsStringSync(), contains('subheading'));
   });
 }

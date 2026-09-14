@@ -13,6 +13,9 @@ import 'package:shelf/screens/library_screen.dart';
 import 'package:shelf/services/ai_secure_storage.dart';
 import 'package:shelf/services/ai_settings_controller.dart';
 import 'package:shelf/services/export_share.dart';
+import 'package:shelf/services/notes_export.dart';
+import 'package:shelf/services/pdf_outline_source.dart';
+import 'package:shelf/services/pdf_section_resolver.dart';
 import 'package:shelf/theme/shelf_theme.dart';
 import 'package:shelf/widgets/ai_scope.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -71,10 +74,12 @@ void main() {
     ai = AiSettingsController(storage: storage, client: fake);
     await ai.load();
     await ai.saveApiKey('sk-test-not-a-real-key');
+    PdfOutlineSource.loadForDocumentOverride = (_, _) async => const [];
   });
 
   tearDown(() async {
     ExportShare.override = null;
+    PdfOutlineSource.loadForDocumentOverride = null;
     await db.close();
   });
 
@@ -133,6 +138,65 @@ void main() {
       contains('Come back to this diagram.'),
     );
     expect(File(shared.last).readAsStringSync(), contains('selected_text'));
+    expect(File(shared.last).readAsStringSync(), contains('heading'));
+    expect(File(shared.last).readAsStringSync(), contains('subheading'));
+  });
+
+  test('Export comments JSON includes heading fields from a mock outline', () async {
+    final shared = <String>[];
+    ExportShare.override = (paths, subject) async {
+      shared
+        ..clear()
+        ..addAll(paths);
+    };
+    addTearDown(() => ExportShare.override = null);
+
+    final dir = await Directory.systemTemp.createTemp('shelf-export-headings-');
+    addTearDown(() => dir.delete(recursive: true));
+    final outline = PdfSectionResolver.flattenDraft(const [
+      OutlineDraft(
+        title: 'Chapter 3 Method',
+        page: 2,
+        y: 0.05,
+        children: [
+          OutlineDraft(title: '3.2 Standing remark', page: 2, y: 0.10),
+        ],
+      ),
+    ]);
+    await LibraryScreen.exportDocumentComments(
+      document: store.documents.single,
+      notes: store.notesForDocument('pdf-1'),
+      labelById: store.labelById,
+      directory: dir,
+      outline: outline,
+    );
+
+    final json = File(shared.first).readAsStringSync();
+    expect(json, contains('"heading": "Chapter 3 Method"'));
+    expect(json, contains('"subheading": "3.2 Standing remark"'));
+    expect(File(shared.last).readAsStringSync(), contains('heading'));
+  });
+
+  test('Send-to-AI snippets include heading and subheading from outline', () {
+    final outline = PdfSectionResolver.flattenDraft(const [
+      OutlineDraft(
+        title: 'Chapter 3 Method',
+        page: 2,
+        y: 0.05,
+        children: [
+          OutlineDraft(title: '3.2 Standing remark', page: 2, y: 0.10),
+        ],
+      ),
+    ]);
+    final snippets = NotesExport.snippets(
+      notes: store.notesForDocument('pdf-1'),
+      labelById: store.labelById,
+      outline: outline,
+    );
+    expect(snippets, hasLength(1));
+    expect(snippets.single.heading, 'Chapter 3 Method');
+    expect(snippets.single.subheading, '3.2 Standing remark');
+    expect(snippets.single.text, 'Come back to this diagram.');
   });
 
   testWidgets('Send to connected AI offers Include PDF vs Notes only', (

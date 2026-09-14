@@ -154,6 +154,8 @@ void main() {
           selectedText: 'method',
           documentTitle: 'Notes on method',
           page: 2,
+          heading: 'Chapter 3 Method',
+          subheading: '3.2 Standing remark',
         ),
       );
 
@@ -162,7 +164,31 @@ void main() {
       expect(body, contains('method'));
       expect(body, contains('Notes on method'));
       expect(body, contains('Page: 2'));
+      expect(body, contains('Heading: Chapter 3 Method'));
+      expect(body, contains('Subheading: 3.2 Standing remark'));
       expect(body, isNot(contains(_fakeKey)));
+    });
+
+    test('book ask prompt includes per-note heading and subheading', () {
+      final prompt = HttpAiClient.buildAskPrompt(
+        const AiAskRequest(
+          noteText: 'Notes from Notes on method',
+          documentTitle: 'Notes on method',
+          notes: [
+            AiNoteSnippet(
+              text: 'Come back to this diagram.',
+              page: 2,
+              selectedText: 'method',
+              labelName: 'General note',
+              heading: 'Chapter 3 Method',
+              subheading: '3.2 Standing remark',
+            ),
+          ],
+        ),
+      );
+      expect(prompt, contains('Chapter 3 Method'));
+      expect(prompt, contains('3.2 Standing remark'));
+      expect(prompt, contains('Come back to this diagram.'));
     });
 
     test('Grok uses the OpenAI-compatible xAI host', () async {

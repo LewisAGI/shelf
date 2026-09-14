@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/color_label.dart';
 import '../models/note.dart';
 import '../services/filler_cleanup.dart';
+import '../services/pdf_section_resolver.dart';
 import '../services/speech_capture.dart';
 import '../theme/shelf_theme.dart';
 import 'ask_about_note.dart';
@@ -39,6 +40,9 @@ class NoteEditor extends StatefulWidget {
     this.quotedText,
     this.pdfFileName,
     this.loadPdf,
+    this.heading,
+    this.subheading,
+    this.sections = const [],
   });
 
   final List<ColorLabel> labels;
@@ -53,6 +57,9 @@ class NoteEditor extends StatefulWidget {
   final String? quotedText;
   final String? pdfFileName;
   final Future<List<int>?> Function()? loadPdf;
+  final String? heading;
+  final String? subheading;
+  final List<PdfSection> sections;
 
   static const int composerMaxLines = 4;
 
@@ -70,6 +77,9 @@ class NoteEditor extends StatefulWidget {
     String? quotedText,
     String? pdfFileName,
     Future<List<int>?> Function()? loadPdf,
+    String? heading,
+    String? subheading,
+    List<PdfSection> sections = const [],
   }) {
     return showModalBottomSheet<NoteEditorResult>(
       context: context,
@@ -90,6 +100,9 @@ class NoteEditor extends StatefulWidget {
           quotedText: quotedText ?? note?.selection?.text,
           pdfFileName: pdfFileName,
           loadPdf: loadPdf,
+          heading: heading,
+          subheading: subheading,
+          sections: sections,
         );
       },
     );
@@ -280,6 +293,10 @@ class _NoteEditorState extends State<NoteEditor> {
             offerPdf: widget.loadPdf != null,
             loadPdf: widget.loadPdf,
             pdfFileName: widget.pdfFileName,
+            heading: widget.heading,
+            subheading: widget.subheading,
+            sections: widget.sections,
+            note: widget.note,
           ),
           const SizedBox(height: 8),
           Row(

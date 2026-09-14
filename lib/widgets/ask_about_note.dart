@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../models/ai_provider.dart';
+import '../models/color_label.dart';
 import '../models/note.dart';
 import '../services/ai_client.dart';
+import '../services/notes_export.dart';
+import '../services/pdf_section_resolver.dart';
 import '../theme/shelf_theme.dart';
 import 'ai_scope.dart';
 import 'ai_send_scope.dart';
@@ -24,6 +27,10 @@ class AskAboutNoteButton extends StatelessWidget {
     this.loadPdf,
     this.pdfFileName,
     this.notes = const [],
+    this.heading,
+    this.subheading,
+    this.sections = const [],
+    this.note,
   });
 
   /// Read at tap time so the composer field is current.
@@ -40,6 +47,13 @@ class AskAboutNoteButton extends StatelessWidget {
   final PdfBytesLoader? loadPdf;
   final String? pdfFileName;
   final List<AiNoteSnippet> notes;
+  final String? heading;
+  final String? subheading;
+
+  /// Current PDF outline (or page-title fallback). Used when [heading]
+  /// is not passed explicitly.
+  final List<PdfSection> sections;
+  final Note? note;
 
   static AiAskRequest requestFor({
     required String noteText,
@@ -51,17 +65,53 @@ class AskAboutNoteButton extends StatelessWidget {
     List<int>? pdfBytes,
     String? pdfFileName,
     String? pdfSkippedReason,
+    String? heading,
+    String? subheading,
+    List<PdfSection> sections = const [],
   }) {
+    final resolved = _resolveHeadings(
+      heading: heading,
+      subheading: subheading,
+      sections: sections,
+      note: note,
+      page: page,
+    );
     return AiAskRequest(
       noteText: noteText.trim().isNotEmpty ? noteText : (note?.text ?? ''),
       selectedText: selectedText ?? note?.selection?.text,
       documentTitle: documentTitle,
       page: page ?? note?.page,
+      heading: resolved.heading,
+      subheading: resolved.subheading,
       notes: notes,
       pdfBytes: pdfBytes,
       pdfFileName: pdfFileName,
       pdfSkippedReason: pdfSkippedReason,
     );
+  }
+
+  static NoteHeadings _resolveHeadings({
+    String? heading,
+    String? subheading,
+    List<PdfSection> sections = const [],
+    Note? note,
+    int? page,
+  }) {
+    if ((heading != null && heading.trim().isNotEmpty) ||
+        (subheading != null && subheading.trim().isNotEmpty)) {
+      return NoteHeadings(
+        heading: heading?.trim().isEmpty == true ? null : heading?.trim(),
+        subheading:
+            subheading?.trim().isEmpty == true ? null : subheading?.trim(),
+      );
+    }
+    if (note != null) {
+      return PdfSectionResolver.forNote(note, sections);
+    }
+    if (page != null) {
+      return PdfSectionResolver.headingsFor(sections: sections, page: page);
+    }
+    return const NoteHeadings();
   }
 
   static Future<void> open(
@@ -75,6 +125,12 @@ class AskAboutNoteButton extends StatelessWidget {
     bool offerPdf = false,
     PdfBytesLoader? loadPdf,
     String? pdfFileName,
+    String? heading,
+    String? subheading,
+    List<PdfSection> sections = const [],
+    Future<List<PdfSection>> Function()? loadSections,
+    List<Note> notesToResolve = const [],
+    ColorLabel Function(String id)? labelById,
   }) async {
     final ai = AiScope.maybeOf(context);
     if (ai == null || !ai.hasApiKey) {
@@ -90,6 +146,7 @@ class AskAboutNoteButton extends StatelessWidget {
       );
       return;
     }
+    final sectionsFuture = loadSections?.call();
     List<int>? pdfBytes;
     String? pdfSkippedReason;
     if (offerPdf && loadPdf != null) {
@@ -109,16 +166,34 @@ class AskAboutNoteButton extends StatelessWidget {
         }
       }
     }
+    var resolvedSections = sections;
+    if (sectionsFuture != null) {
+      try {
+        resolvedSections = await sectionsFuture;
+      } on Object {
+        resolvedSections = const [];
+      }
+    }
+    final resolvedNotes = notesToResolve.isNotEmpty && labelById != null
+        ? NotesExport.snippets(
+            notes: notesToResolve,
+            labelById: labelById,
+            outline: resolvedSections,
+          )
+        : notes;
     final request = requestFor(
       noteText: noteText,
       selectedText: selectedText,
       documentTitle: documentTitle,
       page: page,
       note: note,
-      notes: notes,
+      notes: resolvedNotes,
       pdfBytes: pdfBytes,
       pdfFileName: pdfFileName,
       pdfSkippedReason: pdfSkippedReason,
+      heading: heading,
+      subheading: subheading,
+      sections: resolvedSections,
     );
     if (!request.hasAnythingToAsk) {
       if (!context.mounted) {
@@ -145,10 +220,14 @@ class AskAboutNoteButton extends StatelessWidget {
       selectedText: selectedText,
       documentTitle: documentTitle,
       page: page,
+      note: note,
       notes: notes,
       offerPdf: offerPdf,
       loadPdf: loadPdf,
       pdfFileName: pdfFileName,
+      heading: heading,
+      subheading: subheading,
+      sections: sections,
     );
   }
 

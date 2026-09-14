@@ -9,6 +9,8 @@ import '../models/library_document.dart';
 import '../models/note.dart';
 import '../models/note_selection.dart';
 import '../services/note_open_sequence.dart';
+import '../services/pdf_outline_source.dart';
+import '../services/pdf_section_resolver.dart';
 import '../services/selection_anchor.dart';
 import '../services/speech_capture.dart';
 import '../theme/shelf_theme.dart';
@@ -46,6 +48,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   int _page = 1;
   int _pageCount = 1;
   List<PdfOutlineNode> _outline = const [];
+  List<PdfSection> _sections = const [];
   String? _focusedNoteId;
   bool _ready = false;
   final Completer<void> _viewerReady = Completer<void>();
@@ -176,6 +179,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Future<void> _onViewerReady(PdfDocument document, PdfViewerController controller) async {
     final outline = await document.loadOutline();
+    final heights = [for (final page in document.pages) page.height];
+    var sections = PdfSectionResolver.flattenOutline(
+      outline,
+      pageHeights: heights,
+    );
+    if (sections.isEmpty) {
+      sections = await PdfOutlineSource.pageTitleFallback(document);
+    }
     if (!mounted) {
       return;
     }
@@ -183,6 +194,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       _ready = true;
       _pageCount = document.pages.length;
       _outline = outline;
+      _sections = sections;
       _page = controller.pageNumber ?? _page;
     });
     await widget.store.updatePageCount(widget.document.id, document.pages.length);
@@ -423,6 +435,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (!mounted) {
       return;
     }
+    final headings = PdfSectionResolver.headingsFor(
+      sections: _sections,
+      page: page,
+      y: selection?.top ?? y,
+    );
     final result = await NoteEditor.show(
       context,
       labels: widget.store.labels,
@@ -435,6 +452,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
       quotedText: selection?.text,
       pdfFileName: '${widget.document.title}.pdf',
       loadPdf: _loadPdfBytes,
+      heading: headings.heading,
+      subheading: headings.subheading,
+      sections: _sections,
       voiceHint: ready
           ? 'Orange is selected until you pick another colour.'
           : 'Voice dictation is limited on the Simulator. Type the note, or use a physical iPhone.',
@@ -458,6 +478,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Future<void> _editNote(Note note) async {
     setState(() => _focusedNoteId = note.id);
+    final headings = PdfSectionResolver.forNote(note, _sections);
     final result = await NoteEditor.show(
       context,
       labels: widget.store.labels,
@@ -468,6 +489,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
       quotedText: note.selection?.text,
       pdfFileName: '${widget.document.title}.pdf',
       loadPdf: _loadPdfBytes,
+      heading: headings.heading,
+      subheading: headings.subheading,
+      sections: _sections,
     );
     if (result == null) {
       return;

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../data/shelf_store.dart';
 import '../models/note.dart';
+import '../services/pdf_outline_source.dart';
 import '../theme/shelf_theme.dart';
 import '../widgets/ask_about_note.dart';
 import '../widgets/colour_label_chip.dart';
@@ -182,6 +183,12 @@ class _NoteTile extends StatelessWidget {
               documentTitle: document?.title,
               page: note.page,
               note: note,
+              loadSections: document == null
+                  ? null
+                  : () => PdfOutlineSource.loadForDocument(
+                      document,
+                      store.pdfPath,
+                    ),
               offerPdf: document != null,
               pdfFileName: document == null ? null : '${document.title}.pdf',
               loadPdf: document == null
