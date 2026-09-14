@@ -13,6 +13,7 @@ import 'package:shelf/services/ai_settings_controller.dart';
 import 'package:shelf/services/speech_capture.dart';
 import 'package:shelf/theme/shelf_theme.dart';
 import 'package:shelf/widgets/ai_scope.dart';
+import 'package:shelf/services/pdf_section_resolver.dart';
 import 'package:shelf/widgets/ask_about_note.dart';
 import 'package:shelf/widgets/note_editor.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -193,7 +194,102 @@ void main() {
     expect(request.selectedText, 'standing remark');
     expect(request.documentTitle, 'Notes on method');
     expect(request.page, 3);
+    expect(request.heading, isNull);
+    expect(request.subheading, isNull);
     expect(request.hasAnythingToAsk, isTrue);
+  });
+
+  test('Ask request resolves heading and subheading from a mock outline', () {
+    final note = Note(
+      id: 'note-1',
+      documentId: 'pdf-1',
+      page: 2,
+      x: 0.3,
+      y: 0.55,
+      text: 'Look this up.',
+      colorLabelId: ColorLabel.orangeId,
+      createdAt: DateTime.utc(2026, 9, 14),
+      updatedAt: DateTime.utc(2026, 9, 14),
+    );
+    final sections = PdfSectionResolver.flattenDraft(const [
+      OutlineDraft(
+        title: 'Chapter 3 Method',
+        page: 2,
+        y: 0.05,
+        children: [
+          OutlineDraft(title: '3.2 Standing remark', page: 2, y: 0.40),
+        ],
+      ),
+    ]);
+    final request = AskAboutNoteButton.requestFor(
+      noteText: note.text,
+      selectedText: 'standing remark',
+      documentTitle: 'Notes on method',
+      page: note.page,
+      note: note,
+      sections: sections,
+    );
+    expect(request.heading, 'Chapter 3 Method');
+    expect(request.subheading, '3.2 Standing remark');
+    expect(request.page, 2);
+  });
+
+  testWidgets('Ask about this note payload includes heading and subheading', (
+    tester,
+  ) async {
+    await ai.saveApiKey('sk-test-not-a-real-key');
+    final sections = PdfSectionResolver.flattenDraft(const [
+      OutlineDraft(
+        title: 'Chapter 3 Method',
+        page: 2,
+        y: 0.05,
+        children: [
+          OutlineDraft(title: '3.2 Standing remark', page: 2, y: 0.10),
+        ],
+      ),
+    ]);
+    final note = Note(
+      id: 'note-1',
+      documentId: 'pdf-1',
+      page: 2,
+      x: 0.3,
+      y: 0.4,
+      text: 'Come back to this diagram.',
+      colorLabelId: ColorLabel.orangeId,
+      createdAt: DateTime.utc(2026, 9, 13),
+      updatedAt: DateTime.utc(2026, 9, 13),
+      selection: const NoteSelection(
+        text: 'method',
+        left: 0.2,
+        top: 0.2,
+        right: 0.4,
+        bottom: 0.25,
+      ),
+    );
+
+    await pumpScoped(
+      tester,
+      Scaffold(
+        body: NoteEditor(
+          labels: ColorLabel.seedDefaults(),
+          defaultLabelId: ColorLabel.orangeId,
+          speech: SpeechCapture(),
+          note: note,
+          documentTitle: 'Notes on method',
+          quotedText: note.selection?.text,
+          sections: sections,
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('ask-about-note')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(fake.lastAsk, isNotNull);
+    expect(fake.lastAsk!.heading, 'Chapter 3 Method');
+    expect(fake.lastAsk!.subheading, '3.2 Standing remark');
+    expect(fake.lastAsk!.selectedText, 'method');
   });
 
   testWidgets('Settings Test connection success and failure', (tester) async {

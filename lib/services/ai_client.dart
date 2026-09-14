@@ -105,6 +105,8 @@ class HttpAiClient implements AiClient {
       selectedText: request.selectedText,
       documentTitle: request.documentTitle,
       page: request.page,
+      heading: request.heading,
+      subheading: request.subheading,
       notes: request.notes,
       pdfSkippedReason: reason,
     );
@@ -308,12 +310,28 @@ class HttpAiClient implements AiClient {
     if (request.page != null) {
       buffer.writeln('Page: ${request.page}');
     }
+    final heading = request.heading?.trim();
+    if (heading != null && heading.isNotEmpty) {
+      buffer.writeln('Heading: $heading');
+    }
+    final subheading = request.subheading?.trim();
+    if (subheading != null && subheading.isNotEmpty) {
+      buffer.writeln('Subheading: $subheading');
+    }
     if (request.notes.isNotEmpty) {
       buffer
         ..writeln()
         ..writeln("The reader's notes, in page order:");
       for (final note in request.notes) {
         buffer.write('- Page ${note.page}');
+        final noteHeading = note.heading?.trim();
+        if (noteHeading != null && noteHeading.isNotEmpty) {
+          buffer.write(' · $noteHeading');
+        }
+        final noteSub = note.subheading?.trim();
+        if (noteSub != null && noteSub.isNotEmpty) {
+          buffer.write(' · $noteSub');
+        }
         final label = note.labelName?.trim();
         if (label != null && label.isNotEmpty) {
           buffer.write(' · $label');

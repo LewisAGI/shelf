@@ -134,12 +134,16 @@ class AiNoteSnippet {
     required this.page,
     this.selectedText,
     this.labelName,
+    this.heading,
+    this.subheading,
   });
 
   final String text;
   final int page;
   final String? selectedText;
   final String? labelName;
+  final String? heading;
+  final String? subheading;
 }
 
 class AiAskRequest {
@@ -148,6 +152,8 @@ class AiAskRequest {
     this.selectedText,
     this.documentTitle,
     this.page,
+    this.heading,
+    this.subheading,
     this.notes = const [],
     this.pdfBytes,
     this.pdfFileName,
@@ -158,6 +164,8 @@ class AiAskRequest {
   final String? selectedText;
   final String? documentTitle;
   final int? page;
+  final String? heading;
+  final String? subheading;
   final List<AiNoteSnippet> notes;
   final List<int>? pdfBytes;
   final String? pdfFileName;

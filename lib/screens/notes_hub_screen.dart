@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../data/shelf_store.dart';
 import '../models/note.dart';
+import '../services/pdf_outline_source.dart';
+import '../services/pdf_section_resolver.dart';
 import '../theme/shelf_theme.dart';
 import '../widgets/ask_about_note.dart';
 import '../widgets/colour_label_chip.dart';
@@ -174,14 +176,24 @@ class _NoteTile extends StatelessWidget {
           key: Key('ask-about-note-${note.id}'),
           tooltip: 'Ask about this note',
           icon: const Icon(Icons.auto_awesome_outlined),
-          onPressed: () {
-            AskAboutNoteButton.open(
+          onPressed: () async {
+            final sections = document == null
+                ? const <PdfSection>[]
+                : await PdfOutlineSource.loadForDocument(
+                    document,
+                    store.pdfPath,
+                  );
+            if (!context.mounted) {
+              return;
+            }
+            await AskAboutNoteButton.open(
               context,
               noteText: note.text,
               selectedText: note.selection?.text,
               documentTitle: document?.title,
               page: note.page,
               note: note,
+              sections: sections,
               offerPdf: document != null,
               pdfFileName: document == null ? null : '${document.title}.pdf',
               loadPdf: document == null
