@@ -401,6 +401,7 @@ void main() {
         expect(find.byKey(const Key('note-composer-colour')), findsOneWidget);
         expect(find.text('Leave a comment'), findsOneWidget);
         expect(find.byType(AskAboutNoteButton), findsOneWidget);
+        expect(find.byKey(const Key('ask-about-note')), findsNothing);
         expect(find.byType(Slider), findsNothing);
         expect(find.byKey(const Key('note-position-x')), findsNothing);
         expect(find.byKey(const Key('note-position-y')), findsNothing);
@@ -461,7 +462,7 @@ void main() {
     expect(marker.color, label.color);
   });
 
-  testWidgets('Settings keeps Labels and a live API / connection section', (
+  testWidgets('Settings keeps Labels and Connect your own AI', (
     tester,
   ) async {
     final ai = AiSettingsController(
@@ -484,20 +485,16 @@ void main() {
     expect(find.text('General note'), findsOneWidget);
     final pageScroll = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(
-      find.text('API / connection'),
+      find.text('Connect your own AI'),
       300,
       scrollable: pageScroll,
     );
-    expect(find.text('API / connection'), findsOneWidget);
-    expect(find.text('Connection'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Bring your own AI'),
-      200,
-      scrollable: pageScroll,
-    );
-    expect(find.text('Bring your own AI'), findsOneWidget);
+    expect(find.text('Connect your own AI'), findsOneWidget);
+    expect(find.text('Connection'), findsNothing);
+    expect(find.text('API / connection'), findsNothing);
     expect(find.text('API key'), findsOneWidget);
-    expect(find.text('Endpoint'), findsOneWidget);
+    expect(find.text('Save key'), findsOneWidget);
+    expect(find.text('Endpoint'), findsNothing);
     expect(find.text('Coming in a later release'), findsNothing);
     expect(find.text('Add a key after labels ship'), findsNothing);
     expect(find.byKey(const Key('settings-ai-test-connection')), findsOneWidget);

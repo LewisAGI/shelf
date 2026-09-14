@@ -34,7 +34,7 @@ class FakeAiClient implements AiClient {
   }
 
   @override
-  Future<String> askAbout(
+  Future<AiAskOutcome> askAbout(
     AiConnection connection,
     AiAskRequest request,
   ) async {
@@ -44,6 +44,9 @@ class FakeAiClient implements AiClient {
     if (error != null) {
       throw error;
     }
-    return askReply;
+    return AiAskOutcome(
+      reply: askReply,
+      pdfNotice: request.pdfSkippedReason,
+    );
   }
 }

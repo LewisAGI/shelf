@@ -157,12 +157,107 @@ void main() {
         ),
       );
 
-      expect(reply, 'Here is a reading of the note.');
+      expect(reply.reply, 'Here is a reading of the note.');
       expect(body, contains('Come back to the method section.'));
       expect(body, contains('method'));
       expect(body, contains('Notes on method'));
       expect(body, contains('Page: 2'));
       expect(body, isNot(contains(_fakeKey)));
+    });
+
+    test('Grok uses the OpenAI-compatible xAI host', () async {
+      late String body;
+      final client = HttpAiClient(
+        httpClient: MockClient((request) async {
+          body = request.body;
+          expect(request.url.toString(), 'https://api.x.ai/v1/chat/completions');
+          expect(request.headers['Authorization'], 'Bearer $_fakeKey');
+          return http.Response(
+            '{"choices":[{"message":{"content":"Grok reply"}}]}',
+            200,
+          );
+        }),
+      );
+      final grok = const AiConnection(
+        provider: AiProvider.grok,
+        baseUrl: 'https://api.x.ai/v1',
+        model: 'grok-4.6',
+        apiKey: _fakeKey,
+      );
+
+      final outcome = await client.askAbout(
+        grok,
+        const AiAskRequest(noteText: 'What is this saying?'),
+      );
+      expect(outcome.reply, 'Grok reply');
+      expect(body, contains('What is this saying?'));
+      expect(body, isNot(contains(_fakeKey)));
+    });
+
+    test('skips a Grok PDF attachment and still sends the notes', () async {
+      late String body;
+      final client = HttpAiClient(
+        httpClient: MockClient((request) async {
+          body = request.body;
+          return http.Response(
+            '{"choices":[{"message":{"content":"Notes only reply"}}]}',
+            200,
+          );
+        }),
+      );
+      final grok = const AiConnection(
+        provider: AiProvider.grok,
+        baseUrl: 'https://api.x.ai/v1',
+        model: 'grok-4.6',
+        apiKey: _fakeKey,
+      );
+      final outcome = await client.askAbout(
+        grok,
+        AiAskRequest(
+          noteText: 'Whole book',
+          documentTitle: 'Notes on method',
+          notes: const [
+            AiNoteSnippet(text: 'First', page: 1),
+            AiNoteSnippet(text: 'Second', page: 2),
+          ],
+          pdfBytes: [1, 2, 3, 4],
+          pdfFileName: 'notes.pdf',
+        ),
+      );
+      expect(outcome.reply, 'Notes only reply');
+      expect(outcome.pdfNotice, contains('xAI'));
+      expect(body, isNot(contains('file_data')));
+      expect(body, contains('The PDF could not be attached'));
+    });
+
+    test('Anthropic attaches a PDF document block', () async {
+      late String body;
+      final client = HttpAiClient(
+        httpClient: MockClient((request) async {
+          body = request.body;
+          return http.Response(
+            '{"content":[{"type":"text","text":"With PDF"}]}',
+            200,
+          );
+        }),
+      );
+      final outcome = await client.askAbout(
+        const AiConnection(
+          provider: AiProvider.anthropic,
+          baseUrl: 'https://api.anthropic.com',
+          model: 'claude-sonnet-4-5',
+          apiKey: _fakeKey,
+        ),
+        AiAskRequest(
+          noteText: 'Look at the figure.',
+          pdfBytes: [37, 80, 68, 70],
+          pdfFileName: 'book.pdf',
+        ),
+      );
+      expect(outcome.reply, 'With PDF');
+      expect(outcome.pdfNotice, isNull);
+      expect(body, contains('"type":"document"'));
+      expect(body, contains('application/pdf'));
     });
 
     test('Anthropic messages success and HTTP failure', () async {
@@ -188,7 +283,7 @@ void main() {
       );
       final request = const AiAskRequest(noteText: 'What is this saying?');
 
-      expect(await client.askAbout(anthropic, request), 'Anthropic reply');
+      expect((await client.askAbout(anthropic, request)).reply, 'Anthropic reply');
       expect(
         () => client.askAbout(anthropic, request),
         throwsA(isA<AiClientException>()),

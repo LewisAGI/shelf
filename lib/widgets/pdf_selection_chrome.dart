@@ -3,24 +3,25 @@ import 'package:pdfrx/pdfrx.dart';
 
 import '../theme/shelf_theme.dart';
 
-/// Hides pdfrx's grey/black selection fill without dropping grab/widen handles.
+/// Visible orange selection fill + orange drag handles. No leftover callout.
 ///
 /// pdfrx 2.6.1 has **no** `selectionColor` on [PdfTextSelectionParams]. The
 /// page fill is painted in the viewer canvas from
 /// [ThemeData.textSelectionTheme.selectionColor] (`_selectionColorOf`).
-/// There is no separate page-overlay fill.
 ///
-/// A fully transparent theme colour removes that canvas fill. Remaining
-/// chrome on device after PR #6 was handle geometry (30×30 filled triangles
-/// + black shadows) and the touch magnifier — not a second fill API. Those
-/// are thinned here: compact caret dots, no shadow, magnifier off.
+/// PR #7 set that colour to fully transparent, which removed the highlight
+/// between the handles. We restore a translucent Shelf orange so the selected
+/// span is visible again.
 ///
-/// If a faint box still appears, it is pdfrx canvas fill using a theme
-/// context that missed this wrap (fallback `DefaultSelectionStyle.defaultColor`).
-/// There is no further fill hook without forking pdfrx or covering glyphs.
+/// The empty dark grey/black callout under the handle was pdfrx's
+/// [AdaptiveTextSelectionToolbar] (Cupertino dark bubble + caret) expanding
+/// with no usable buttons. [PdfViewerParams.buildContextMenu] returns null and
+/// automatic menus stay off — Shelf's [SelectionCommentBar] is the add-comment
+/// chrome. The pdfrx magnifier stays disabled so it cannot paint an empty
+/// loupe.
 class PdfSelectionChrome {
-  static const Color highlightColor = Color(0x00000000);
-  static const Color handleColor = ShelfColors.composerCaret;
+  static const Color highlightColor = Color(0x48F15A22);
+  static const Color handleColor = ShelfColors.orange;
   static const double handleHitSize = 30;
   static const double handleVisualSize = 12;
 
@@ -32,8 +33,8 @@ class PdfSelectionChrome {
     return base.copyWith(
       textSelectionTheme: const TextSelectionThemeData(
         selectionColor: highlightColor,
-        selectionHandleColor: highlightColor,
-        cursorColor: highlightColor,
+        selectionHandleColor: handleColor,
+        cursorColor: handleColor,
       ),
     );
   }
@@ -45,7 +46,7 @@ class PdfSelectionChrome {
           data: theme(Theme.of(context)),
           child: DefaultSelectionStyle(
             selectionColor: highlightColor,
-            cursorColor: highlightColor,
+            cursorColor: handleColor,
             child: child,
           ),
         );
@@ -54,9 +55,6 @@ class PdfSelectionChrome {
   }
 
   /// Compact caret at the outside corner of a 30×30 hit box.
-  ///
-  /// pdfrx's default 30×30 triangles read as a leftover selection box once
-  /// the canvas fill is transparent. A 12px disc is still grabable.
   static Path handlePath({
     required PdfTextDirection direction,
     required PdfTextSelectionAnchorType type,
@@ -92,6 +90,13 @@ class PdfSelectionChrome {
       path: handlePath(direction: anchor.direction, type: anchor.type),
       state: state,
     );
+  }
+
+  static Widget? hideContextMenu(
+    BuildContext context,
+    PdfViewerContextMenuBuilderParams params,
+  ) {
+    return null;
   }
 }
 

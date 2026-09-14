@@ -43,7 +43,8 @@ First-run iOS build: open `ios/Runner.xcworkspace` in Xcode if you need to pick 
 7. Bottom bar: previous / next page, and the unfold control to **jump to a page number** or a **chapter** if the PDF has a table of contents.
 8. **Notes** tab: keyword search, filter by colour label, tap a row to open that PDF on that page. The reader waits until the viewer is ready, jumps to the page, brings the marker into view, then opens the editor — no fixed delay.
 9. **Settings**: edit the seeded labels (orange = general note, purple = further research), add your own colours and meanings. They persist with the local library.
-10. **Bring your own AI** (Settings → API / connection): pick OpenAI, OpenAI-compatible (base URL + key), or Anthropic. The key is stored in the iPhone Keychain. **Test connection** hits `/v1/models` (or a tiny chat completion if that 404s). From a note, **Ask about this note** sends the note text plus any quoted `selected_text` and page context to *your* provider — Shelf does not ship or spend a house key.
+10. **Connect your own AI** (Settings): pick OpenAI, Anthropic, Grok (xAI), or OpenAI-compatible. Each provider keeps its own Keychain key and model. **Test connection** hits `/v1/models` (or a tiny chat completion if that 404s). From a note, **Ask about this note** appears only when a key is saved (the Notes hub still offers Ask and can point you at Settings). Include PDF? vs Notes only when sending a note or a whole book.
+11. Library card **⋮**: **Export comments** (JSON + a short markdown schema, via the share sheet), **Send to connected AI** (all notes for that book, with Include PDF?), **View all comments** (Notes hub, search filled with the book title).
 
 ## What’s stubbed / limited
 
@@ -52,7 +53,7 @@ First-run iOS build: open `ios/Runner.xcworkspace` in Xcode if you need to pick 
 | **Speech on Simulator** | Apple Speech is unreliable or unavailable in the Simulator. The editor stays usable: type the note. On a **physical iPhone**, grant Speech Recognition + Microphone when prompted (`Info.plist` strings are already set). If device dictation still fails, add the Speech Recognition capability on the Runner target in Xcode. |
 | **Android** | Out of scope. The project is iOS-only (`flutter create --platforms=ios`). |
 | **Cloud / accounts / App Store** | Not started. Library is local SQLite + sandbox files. BYO AI is device-to-provider only. |
-| **Export JSON/MD** | Still parked. |
+| **Export JSON/MD** | Library card ⋮ → Export comments. JSON of that book's notes plus a short `.md` schema. Shared through the system share sheet (Save to Files is there). |
 | **Commercial polish** | Intentionally light: readable British English chrome, white canvas, orange accents. |
 
 ## Persistence
@@ -72,4 +73,4 @@ flutter analyze
 flutter test
 ```
 
-Unit tests cover filler cleanup, the note / colour-label persistence model (`toMap` / `fromMap`, default orange seed, coordinate clamping), selection-anchored notes (quoted text + bounds), `FirstTapTracker` (legacy double-tap pairing), the notes-hub open sequence, the Grok-style composer (pill, mic, 4-line field, colour square; no X/Y sliders), the long-press **Comment | Select text** menu, Keychain-backed BYO AI settings (mocked storage), verify-connection success/fail, and Ask-about-note wiring (mocked HTTP).
+Unit tests cover filler cleanup, the note / colour-label persistence model (`toMap` / `fromMap`, default orange seed, coordinate clamping), selection-anchored notes (quoted text + bounds), `FirstTapTracker` (legacy double-tap pairing), the notes-hub open sequence, the Grok-style composer (pill, mic, 4-line field, colour square; no X/Y sliders), the long-press **Comment | Select text** menu, Keychain-backed per-provider BYO AI settings including Grok, verify-connection success/fail, Ask-about-note (hidden on the composer without a key), library card export/send/view, and orange PDF selection chrome.

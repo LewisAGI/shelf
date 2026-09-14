@@ -37,6 +37,8 @@ class NoteEditor extends StatefulWidget {
     this.voiceHint,
     this.documentTitle,
     this.quotedText,
+    this.pdfFileName,
+    this.loadPdf,
   });
 
   final List<ColorLabel> labels;
@@ -49,6 +51,8 @@ class NoteEditor extends StatefulWidget {
   final String? voiceHint;
   final String? documentTitle;
   final String? quotedText;
+  final String? pdfFileName;
+  final Future<List<int>?> Function()? loadPdf;
 
   static const int composerMaxLines = 4;
 
@@ -64,6 +68,8 @@ class NoteEditor extends StatefulWidget {
     String? voiceHint,
     String? documentTitle,
     String? quotedText,
+    String? pdfFileName,
+    Future<List<int>?> Function()? loadPdf,
   }) {
     return showModalBottomSheet<NoteEditorResult>(
       context: context,
@@ -82,6 +88,8 @@ class NoteEditor extends StatefulWidget {
           voiceHint: voiceHint,
           documentTitle: documentTitle,
           quotedText: quotedText ?? note?.selection?.text,
+          pdfFileName: pdfFileName,
+          loadPdf: loadPdf,
         );
       },
     );
@@ -263,12 +271,15 @@ class _NoteEditorState extends State<NoteEditor> {
               style: const TextStyle(color: ShelfColors.muted, fontSize: 12),
             ),
           ],
-          const SizedBox(height: 8),
           AskAboutNoteButton(
             noteText: () => _controller.text,
             selectedText: widget.quotedText ?? widget.note?.selection?.text,
             documentTitle: widget.documentTitle,
             page: widget.note?.page ?? widget.page,
+            hideWhenNoKey: true,
+            offerPdf: widget.loadPdf != null,
+            loadPdf: widget.loadPdf,
+            pdfFileName: widget.pdfFileName,
           ),
           const SizedBox(height: 8),
           Row(
