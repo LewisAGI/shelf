@@ -9,8 +9,9 @@ import '../models/library_document.dart';
 import '../models/note.dart';
 import '../models/note_selection.dart';
 import '../services/note_open_sequence.dart';
-import '../services/pdf_outline_source.dart';
+import '../services/note_page_target.dart';
 import '../services/pdf_section_resolver.dart';
+import '../services/select_text_handoff.dart';
 import '../services/selection_anchor.dart';
 import '../services/speech_capture.dart';
 import '../theme/shelf_theme.dart';
@@ -52,6 +53,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
   String? _focusedNoteId;
   bool _ready = false;
   final Completer<void> _viewerReady = Completer<void>();
+  final Completer<void> _structureReady = Completer<void>();
+  final SelectTextHandoff _selectHandoff = SelectTextHandoff();
+
+  /// pdfrx `initialPageNumber` — note page when opened from the hub.
+  late final int _openAtPage;
 
   /// pdfrx selection stays off until the user picks **Select text**.
   bool _selectionEnabled = false;
@@ -60,7 +66,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   void initState() {
     super.initState();
-    _page = widget.initialPage ?? 1;
+    _openAtPage = NotePageTarget.forNoteOpen(
+      note: widget.focusNoteId == null
+          ? null
+          : _noteById(widget.focusNoteId!),
+      fallbackPage: widget.initialPage,
+    );
+    _page = _openAtPage;
     _pageCount = widget.document.pageCount ?? 1;
     _focusedNoteId = widget.focusNoteId;
     if (widget.focusNoteId != null) {
@@ -73,6 +85,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (!_viewerReady.isCompleted) {
       _viewerReady.complete();
     }
+    if (!_structureReady.isCompleted) {
+      _structureReady.complete();
+    }
     super.dispose();
   }
 
@@ -83,16 +98,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
-  /// Notes hub → reader: ready, then page, then marker, then editor.
-  /// No fixed delay; the second tap is never used as a stand-in.
+  /// Notes hub → reader: ready, then the note's stored page, then marker,
+  /// then editor. Outline / page-title work must not own this jump.
   Future<void> _openFocusedNote(String noteId) async {
-    final targetPage = widget.initialPage ?? _noteById(noteId)?.page ?? _page;
     try {
       await NoteOpenSequence.run(
         waitUntilReady: () => _viewerReady.future,
-        page: targetPage,
+        page: _targetPageForNote(noteId),
         goToPage: _goPage,
-        waitUntilPageCurrent: () => _waitUntilPage(targetPage),
+        waitUntilPageCurrent: () => _waitUntilNotePage(noteId),
         ensureMarkerVisible: () async {
           final note = _noteById(noteId);
           if (note == null || !mounted) {
@@ -102,6 +116,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           await _ensureMarkerVisible(note);
         },
         openNote: () async {
+          await _waitForStructure();
           final note = _noteById(noteId);
           if (note != null && mounted) {
             await _editNote(note);
@@ -112,6 +127,48 @@ class _ReaderScreenState extends State<ReaderScreen> {
     } on Object {
       // Viewer never became ready, or the route was popped.
     }
+  }
+
+  int _targetPageForNote(String noteId) {
+    return NotePageTarget.forNoteOpen(
+      note: _noteById(noteId),
+      fallbackPage: widget.initialPage ?? _openAtPage,
+      pageCount: _livePageCount(),
+    );
+  }
+
+  int? _livePageCount() {
+    if (_controller.isReady) {
+      try {
+        final count = _controller.pageCount;
+        if (count > 1) {
+          return count;
+        }
+      } on Object {
+        // Controller attached but document not readable yet.
+      }
+    }
+    return _pageCount > 1 ? _pageCount : null;
+  }
+
+  Future<void> _waitUntilNotePage(String noteId) async {
+    final target = _targetPageForNote(noteId);
+    await _waitUntilPage(target);
+    final current = _controller.pageNumber ?? _page;
+    if (current != target) {
+      await _goPage(target);
+      await _waitUntilPage(target);
+    }
+  }
+
+  Future<void> _waitForStructure() async {
+    if (_structureReady.isCompleted) {
+      return;
+    }
+    await _structureReady.future.timeout(
+      const Duration(seconds: 2),
+      onTimeout: () {},
+    );
   }
 
   Future<void> _waitUntilPage(int page) async {
@@ -154,20 +211,24 @@ class _ReaderScreenState extends State<ReaderScreen> {
       return;
     }
     try {
+      final viewerPage = NotePageTarget.toViewerPage(
+        note.page,
+        pageCount: _livePageCount(),
+      );
       final page = _controller.pages.cast<PdfPage?>().firstWhere(
-        (item) => item?.pageNumber == note.page,
+        (item) => item?.pageNumber == viewerPage,
         orElse: () => null,
       );
       if (page == null || page.width == 0 || page.height == 0) {
         return;
       }
-      final bounds = markerPdfBounds(
+      final bounds = noteFocusPdfBounds(
         note: note,
         pageWidth: page.width,
         pageHeight: page.height,
       );
       final rect = _controller.calcRectForRectInsidePage(
-        pageNumber: note.page,
+        pageNumber: viewerPage,
         rect: PdfRect(bounds.left, bounds.top, bounds.right, bounds.bottom),
       );
       await _controller.ensureVisible(rect, margin: 32);
@@ -178,36 +239,56 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Future<void> _onViewerReady(PdfDocument document, PdfViewerController controller) async {
-    final outline = await document.loadOutline();
-    final heights = [for (final page in document.pages) page.height];
-    var sections = PdfSectionResolver.flattenOutline(
-      outline,
-      pageHeights: heights,
-    );
-    if (sections.isEmpty) {
-      sections = await PdfOutlineSource.pageTitleFallback(document);
-    }
     if (!mounted) {
       return;
     }
     setState(() {
       _ready = true;
       _pageCount = document.pages.length;
-      _outline = outline;
-      _sections = sections;
       _page = controller.pageNumber ?? _page;
     });
-    await widget.store.updatePageCount(widget.document.id, document.pages.length);
     if (!_viewerReady.isCompleted) {
       _viewerReady.complete();
     }
+    unawaited(_loadStructure(document));
+    await widget.store.updatePageCount(widget.document.id, document.pages.length);
     // Notes-hub focus owns goToPage so it cannot race the editor.
     if (widget.focusNoteId != null) {
       return;
     }
     final target = widget.initialPage;
     if (target != null && target >= 1) {
-      await controller.goToPage(pageNumber: target);
+      await controller.goToPage(
+        pageNumber: NotePageTarget.toViewerPage(
+          target,
+          pageCount: document.pages.length,
+        ),
+      );
+    }
+  }
+
+  Future<void> _loadStructure(PdfDocument document) async {
+    try {
+      final outline = await document.loadOutline();
+      final heights = [for (final page in document.pages) page.height];
+      final sections = PdfSectionResolver.flattenOutline(
+        outline,
+        pageHeights: heights,
+      );
+      // pageTitleFallback loadText()s every page — do not run it on the
+      // live viewer. Export / Ask / Send still use PdfOutlineSource.
+      if (mounted) {
+        setState(() {
+          _outline = outline;
+          _sections = sections;
+        });
+      }
+    } on Object {
+      // Jump sheet / headings degrade; note-open already has the page.
+    } finally {
+      if (!_structureReady.isCompleted) {
+        _structureReady.complete();
+      }
     }
   }
 
@@ -271,15 +352,25 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (!mounted) {
       return;
     }
+    // Capture the word point before the menu overlay or selection-mode
+    // rebuild can invalidate global coordinates / wipe a range.
+    if (_controller.isReady) {
+      final documentPosition = _controller.globalToDocument(globalPosition);
+      if (documentPosition != null) {
+        _selectHandoff.rememberDocumentPoint(documentPosition);
+      }
+    }
     final action = await PagePressMenu.show(
       context,
       globalPosition: globalPosition,
     );
     if (!mounted || action == null) {
+      _selectHandoff.clear();
       return;
     }
     switch (action) {
       case PagePressAction.comment:
+        _selectHandoff.clear();
         await _createNoteAt(globalPosition);
       case PagePressAction.selectText:
         await _beginSelectText(globalPosition);
@@ -287,22 +378,38 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   /// Re-enable pdfrx handles only after the menu, then select the word
-  /// at the press point (not a free-drag grey box).
+  /// captured at long-press (not a free-drag grey box).
   Future<void> _beginSelectText(Offset globalPosition) async {
+    final pending = _selectHandoff.pendingDocumentPoint ??
+        (_controller.isReady
+            ? _controller.globalToDocument(globalPosition)
+            : null);
+    if (pending != null) {
+      _selectHandoff.rememberDocumentPoint(pending);
+    }
     setState(() {
       _selectionEnabled = true;
       _hasActiveSelection = false;
     });
     await WidgetsBinding.instance.endOfFrame;
+    await WidgetsBinding.instance.endOfFrame;
     if (!mounted || !_controller.isReady) {
       return;
     }
-    final documentPosition = _controller.globalToDocument(globalPosition);
+    final documentPosition = _selectHandoff.pendingDocumentPoint ??
+        _controller.globalToDocument(globalPosition);
     if (documentPosition == null) {
       return;
     }
     try {
-      await _controller.textSelectionDelegate.selectWord(documentPosition);
+      final delegate = _controller.textSelectionDelegate;
+      await delegate.selectWord(documentPosition);
+      var text = await delegate.getSelectedText();
+      if (text.trim().isEmpty) {
+        await WidgetsBinding.instance.endOfFrame;
+        await delegate.selectWord(documentPosition);
+      }
+      _selectHandoff.markApplied();
     } on Object {
       if (!mounted) {
         return;
@@ -317,7 +424,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
+  bool _onViewerTap(
+    BuildContext context,
+    PdfViewerController controller,
+    PdfViewerGeneralTapHandlerDetails details,
+  ) {
+    if (details.type == PdfViewerGeneralTapType.tap &&
+        _selectHandoff.consumeWipeProtection()) {
+      return true;
+    }
+    return false;
+  }
+
   Future<void> _exitSelectionMode() async {
+    _selectHandoff.clear();
     if (_controller.isReady) {
       try {
         await _controller.textSelectionDelegate.clearTextSelection();
@@ -521,7 +641,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (!_controller.isReady || !mounted) {
       return;
     }
-    final clamped = page.clamp(1, _pageCount);
+    final clamped = NotePageTarget.toViewerPage(
+      page,
+      pageCount: _livePageCount(),
+    );
     await _controller.goToPage(pageNumber: clamped);
     if (mounted) {
       setState(() => _page = clamped);
@@ -578,9 +701,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     return PdfSelectionChrome.wrap(
                       PdfViewer.file(
                         path,
+                        key: ValueKey('pdf-${widget.document.id}'),
                         controller: _controller,
+                        initialPageNumber: _openAtPage,
                         params: PdfViewerParams(
                           backgroundColor: ShelfColors.white,
+                          onGeneralTap: _onViewerTap,
                           // Selection is off until Select text, so long-press is ours.
                           textSelectionParams: PdfTextSelectionParams(
                             enabled: _selectionEnabled,

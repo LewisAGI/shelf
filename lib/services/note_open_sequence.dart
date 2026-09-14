@@ -77,3 +77,33 @@ bool noteMarkerContains({
     bottom: pdfY - pad,
   );
 }
+
+/// Focus rectangle for notes-hub open: selection box when present, else
+/// the marker. Same PDF bottom-left space as [markerPdfBounds].
+({double left, double top, double right, double bottom}) noteFocusPdfBounds({
+  required Note note,
+  required double pageWidth,
+  required double pageHeight,
+  double pad = 24,
+}) {
+  final selection = note.selection;
+  if (selection != null &&
+      (selection.right > selection.left || selection.bottom > selection.top)) {
+    final left = selection.left * pageWidth;
+    final right = selection.right * pageWidth;
+    final pdfTop = (1 - selection.top) * pageHeight;
+    final pdfBottom = (1 - selection.bottom) * pageHeight;
+    return (
+      left: left - pad,
+      top: pdfTop + pad,
+      right: right + pad,
+      bottom: pdfBottom - pad,
+    );
+  }
+  return markerPdfBounds(
+    note: note,
+    pageWidth: pageWidth,
+    pageHeight: pageHeight,
+    pad: pad,
+  );
+}

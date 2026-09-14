@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../data/shelf_store.dart';
 import '../models/note.dart';
+import '../services/note_page_target.dart';
 import '../services/pdf_outline_source.dart';
 import '../theme/shelf_theme.dart';
 import '../widgets/ask_about_note.dart';
@@ -213,7 +214,7 @@ class _NoteTile extends StatelessWidget {
                     builder: (_) => ReaderScreen(
                       store: store,
                       document: document,
-                      initialPage: note.page,
+                      initialPage: NotePageTarget.forNoteOpen(note: note),
                       focusNoteId: note.id,
                     ),
                   ),
