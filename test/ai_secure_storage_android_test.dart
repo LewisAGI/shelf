@@ -20,7 +20,13 @@ void main() {
       KeychainAiSecureStorage.iosOptions.accessibility,
       KeychainAccessibility.first_unlock_this_device,
     );
-    expect(KeychainAiSecureStorage.androidOptions.resetOnError, isTrue);
+    final android = KeychainAiSecureStorage.androidOptions.toMap();
+    expect(android['resetOnError'], 'true');
+    expect(
+      android['keyCipherAlgorithm'],
+      'RSA_ECB_OAEPwithSHA_256andMGF1Padding',
+    );
+    expect(android['storageCipherAlgorithm'], 'AES_GCM_NoPadding');
 
     final storage = KeychainAiSecureStorage(
       storage: const FlutterSecureStorage(
