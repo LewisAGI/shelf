@@ -14,6 +14,7 @@ import 'package:shelf/services/ai_secure_storage.dart';
 import 'package:shelf/services/ai_settings_controller.dart';
 import 'package:shelf/services/export_share.dart';
 import 'package:shelf/services/notes_export.dart';
+import 'package:shelf/services/pdf_outline_source.dart';
 import 'package:shelf/services/pdf_section_resolver.dart';
 import 'package:shelf/theme/shelf_theme.dart';
 import 'package:shelf/widgets/ai_scope.dart';
@@ -73,10 +74,12 @@ void main() {
     ai = AiSettingsController(storage: storage, client: fake);
     await ai.load();
     await ai.saveApiKey('sk-test-not-a-real-key');
+    PdfOutlineSource.loadForDocumentOverride = (_, _) async => const [];
   });
 
   tearDown(() async {
     ExportShare.override = null;
+    PdfOutlineSource.loadForDocumentOverride = null;
     await db.close();
   });
 

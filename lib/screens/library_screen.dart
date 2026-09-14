@@ -101,23 +101,16 @@ class LibraryScreen extends StatelessWidget {
       );
       return;
     }
-    final outline = await PdfOutlineSource.loadForDocument(
-      document,
-      store.pdfPath,
-    );
-    final snippets = NotesExport.snippets(
-      notes: notes,
-      labelById: store.labelById,
-      outline: outline,
-    );
-    if (!context.mounted) {
-      return;
-    }
     await AskAboutNoteButton.open(
       context,
       noteText: 'Notes from ${document.title}',
       documentTitle: document.title,
-      notes: snippets,
+      notesToResolve: notes,
+      labelById: store.labelById,
+      loadSections: () => PdfOutlineSource.loadForDocument(
+        document,
+        store.pdfPath,
+      ),
       offerPdf: true,
       pdfFileName: '${document.title}.pdf',
       loadPdf: () async {

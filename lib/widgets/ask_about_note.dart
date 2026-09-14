@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../models/ai_provider.dart';
+import '../models/color_label.dart';
 import '../models/note.dart';
 import '../services/ai_client.dart';
+import '../services/notes_export.dart';
 import '../services/pdf_section_resolver.dart';
 import '../theme/shelf_theme.dart';
 import 'ai_scope.dart';
@@ -126,6 +128,9 @@ class AskAboutNoteButton extends StatelessWidget {
     String? heading,
     String? subheading,
     List<PdfSection> sections = const [],
+    Future<List<PdfSection>> Function()? loadSections,
+    List<Note> notesToResolve = const [],
+    ColorLabel Function(String id)? labelById,
   }) async {
     final ai = AiScope.maybeOf(context);
     if (ai == null || !ai.hasApiKey) {
@@ -141,6 +146,7 @@ class AskAboutNoteButton extends StatelessWidget {
       );
       return;
     }
+    final sectionsFuture = loadSections?.call();
     List<int>? pdfBytes;
     String? pdfSkippedReason;
     if (offerPdf && loadPdf != null) {
@@ -160,19 +166,34 @@ class AskAboutNoteButton extends StatelessWidget {
         }
       }
     }
+    var resolvedSections = sections;
+    if (sectionsFuture != null) {
+      try {
+        resolvedSections = await sectionsFuture;
+      } on Object {
+        resolvedSections = const [];
+      }
+    }
+    final resolvedNotes = notesToResolve.isNotEmpty && labelById != null
+        ? NotesExport.snippets(
+            notes: notesToResolve,
+            labelById: labelById,
+            outline: resolvedSections,
+          )
+        : notes;
     final request = requestFor(
       noteText: noteText,
       selectedText: selectedText,
       documentTitle: documentTitle,
       page: page,
       note: note,
-      notes: notes,
+      notes: resolvedNotes,
       pdfBytes: pdfBytes,
       pdfFileName: pdfFileName,
       pdfSkippedReason: pdfSkippedReason,
       heading: heading,
       subheading: subheading,
-      sections: sections,
+      sections: resolvedSections,
     );
     if (!request.hasAnythingToAsk) {
       if (!context.mounted) {

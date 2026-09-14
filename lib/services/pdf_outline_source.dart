@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:pdfrx/pdfrx.dart';
@@ -14,10 +15,22 @@ import 'pdf_section_resolver.dart';
 /// Shelf tries title-like lines from page text. Failures yield an empty
 /// list — callers emit null heading fields.
 class PdfOutlineSource {
+  /// Tests inject a loader so widget tests never hit path_provider / pdfrx.
+  static Future<List<PdfSection>> Function(
+    LibraryDocument document,
+    Future<String> Function(LibraryDocument) pdfPath,
+  )?
+  loadForDocumentOverride;
+
   /// Opens [path], reads structure, disposes the document.
   static Future<List<PdfSection>> loadFromPath(String path) async {
     try {
-      final document = await PdfDocument.openFile(path);
+      if (!File(path).existsSync()) {
+        return const [];
+      }
+      final document = await PdfDocument.openFile(path).timeout(
+        const Duration(seconds: 8),
+      );
       try {
         return await loadFromDocument(document);
       } finally {
@@ -32,6 +45,10 @@ class PdfOutlineSource {
     LibraryDocument document,
     Future<String> Function(LibraryDocument) pdfPath,
   ) async {
+    final injected = loadForDocumentOverride;
+    if (injected != null) {
+      return injected(document, pdfPath);
+    }
     try {
       final path = await pdfPath(document);
       return await loadFromPath(path);
