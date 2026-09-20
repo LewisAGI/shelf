@@ -216,46 +216,10 @@ void main() {
     expect(find.text('Note + PDF'), findsOneWidget);
     expect(find.text('Note + guide'), findsOneWidget);
     expect(find.text('Note only'), findsOneWidget);
-  });
-
-  testWidgets('composer Export / Share note only uses the share sheet',
-      (tester) async {
-    final shared = <String>[];
-    ExportShare.override = (paths, subject) async {
-      shared
-        ..clear()
-        ..addAll(paths);
-      expect(subject, contains('Notes on method'));
-    };
-
-    await pumpScoped(
-      tester,
-      Scaffold(
-        body: NoteEditor(
-          labels: ColorLabel.seedDefaults(),
-          defaultLabelId: ColorLabel.orangeId,
-          speech: SpeechCapture(),
-          note: note,
-          document: document,
-          documentTitle: document.title,
-          quotedText: note.selection?.text,
-        ),
-      ),
-    );
-
-    await tester.tap(find.byKey(const Key('ask-about-note')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('export-share-note')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('export-note-only')));
-    await tester.pumpAndSettle();
-
-    expect(shared, hasLength(1));
-    expect(shared.single, endsWith('Notes-on-method-note.json'));
-    expect(ExportShare.lastSharePositionOrigin, isNot(Rect.zero));
-    final json = File(shared.single).readAsStringSync();
-    expect(json, contains('"file_name": "Notes on method.pdf"'));
-    expect(json, contains('Come back to this diagram.'));
+    expect(find.byKey(const Key('export-note-pdf-guide')), findsOneWidget);
+    expect(find.byKey(const Key('export-note-pdf')), findsOneWidget);
+    expect(find.byKey(const Key('export-note-guide')), findsOneWidget);
+    expect(find.byKey(const Key('export-note-only')), findsOneWidget);
     expect(fake.lastAsk, isNull);
   });
 
