@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/color_label.dart';
+import '../models/library_document.dart';
 import '../models/note.dart';
 import '../services/filler_cleanup.dart';
 import '../services/pdf_section_resolver.dart';
@@ -37,6 +38,7 @@ class NoteEditor extends StatefulWidget {
     this.y,
     this.voiceHint,
     this.documentTitle,
+    this.document,
     this.quotedText,
     this.pdfFileName,
     this.loadPdf,
@@ -54,6 +56,7 @@ class NoteEditor extends StatefulWidget {
   final double? y;
   final String? voiceHint;
   final String? documentTitle;
+  final LibraryDocument? document;
   final String? quotedText;
   final String? pdfFileName;
   final Future<List<int>?> Function()? loadPdf;
@@ -74,6 +77,7 @@ class NoteEditor extends StatefulWidget {
     double? y,
     String? voiceHint,
     String? documentTitle,
+    LibraryDocument? document,
     String? quotedText,
     String? pdfFileName,
     Future<List<int>?> Function()? loadPdf,
@@ -96,7 +100,8 @@ class NoteEditor extends StatefulWidget {
           x: x,
           y: y,
           voiceHint: voiceHint,
-          documentTitle: documentTitle,
+          documentTitle: documentTitle ?? document?.title,
+          document: document,
           quotedText: quotedText ?? note?.selection?.text,
           pdfFileName: pdfFileName,
           loadPdf: loadPdf,
@@ -287,9 +292,12 @@ class _NoteEditorState extends State<NoteEditor> {
           AskAboutNoteButton(
             noteText: () => _controller.text,
             selectedText: widget.quotedText ?? widget.note?.selection?.text,
-            documentTitle: widget.documentTitle,
+            documentTitle: widget.documentTitle ?? widget.document?.title,
+            document: widget.document,
             page: widget.note?.page ?? widget.page,
-            hideWhenNoKey: true,
+            x: _x,
+            y: _y,
+            colorLabelId: _labelId,
             offerPdf: widget.loadPdf != null,
             loadPdf: widget.loadPdf,
             pdfFileName: widget.pdfFileName,
@@ -297,6 +305,7 @@ class _NoteEditorState extends State<NoteEditor> {
             subheading: widget.subheading,
             sections: widget.sections,
             note: widget.note,
+            labels: widget.labels,
           ),
           const SizedBox(height: 8),
           Row(
