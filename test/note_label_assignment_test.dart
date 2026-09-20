@@ -401,7 +401,8 @@ void main() {
         expect(find.byKey(const Key('note-composer-colour')), findsOneWidget);
         expect(find.text('Leave a comment'), findsOneWidget);
         expect(find.byType(AskAboutNoteButton), findsOneWidget);
-        expect(find.byKey(const Key('ask-about-note')), findsNothing);
+        expect(find.byKey(const Key('ask-about-note')), findsOneWidget);
+        expect(find.text('Ask AI'), findsOneWidget);
         expect(find.byType(Slider), findsNothing);
         expect(find.byKey(const Key('note-position-x')), findsNothing);
         expect(find.byKey(const Key('note-position-y')), findsNothing);

@@ -118,9 +118,15 @@ void main() {
     );
 
     expect(find.byKey(const Key('ask-about-note')), findsOneWidget);
+    expect(find.text('Ask AI'), findsOneWidget);
     expect(find.byType(Slider), findsNothing);
     expect(find.text('Add your own API key'), findsNothing);
     await tester.tap(find.byKey(const Key('ask-about-note')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Ask with your AI'), findsOneWidget);
+    expect(find.text('Export / Share note'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('ask-with-your-ai')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
@@ -134,7 +140,7 @@ void main() {
     expect(fake.lastAskConnection?.apiKey, 'sk-test-not-a-real-key');
   });
 
-  testWidgets('composer hides Ask about this note when no API key is set', (
+  testWidgets('composer shows Ask AI without a key so export is reachable', (
     tester,
   ) async {
     await pumpScoped(
@@ -153,10 +159,23 @@ void main() {
     );
 
     expect(find.byKey(const Key('note-composer-pill')), findsOneWidget);
-    expect(find.byKey(const Key('ask-about-note')), findsNothing);
-    expect(find.text('Ask about this note'), findsNothing);
+    expect(find.byKey(const Key('ask-about-note')), findsOneWidget);
+    expect(find.text('Ask AI'), findsOneWidget);
     expect(find.textContaining('Add your own API key'), findsNothing);
     expect(fake.lastAsk, isNull);
+
+    await tester.tap(find.byKey(const Key('ask-about-note')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Ask with your AI'), findsOneWidget);
+    expect(find.text('Export / Share note'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('export-share-note')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Note + PDF + guide'), findsOneWidget);
+    expect(find.text('Note + PDF'), findsOneWidget);
+    expect(find.text('Note + guide'), findsOneWidget);
+    expect(find.text('Note only'), findsOneWidget);
   });
 
   testWidgets('Ask without a key points at Settings and does not call HTTP', (
@@ -175,6 +194,9 @@ void main() {
     );
 
     await tester.tap(find.byKey(const Key('ask-about-note')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(const Key('ask-with-your-ai')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
@@ -283,6 +305,9 @@ void main() {
     );
 
     await tester.tap(find.byKey(const Key('ask-about-note')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(const Key('ask-with-your-ai')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 

@@ -48,7 +48,9 @@ void main() {
     expect(payload['schema'], NotesExport.schemaId);
     expect(payload['exported_at'], '2026-09-14T00:00:00.000Z');
     final doc = payload['document']! as Map<String, Object?>;
+    expect(doc['id'], 'pdf-1');
     expect(doc['title'], 'Notes on method');
+    expect(doc['file_name'], 'Notes on method.pdf');
     expect(doc['page_count'], 8);
     final notes = payload['notes']! as List<dynamic>;
     expect(notes, hasLength(1));
@@ -75,6 +77,23 @@ void main() {
     expect(md, contains('subheading'));
     expect(md, contains('resolved at export time'));
     expect(md, contains('Notes on method'));
+    expect(md, contains('file_name'));
+    expect(md, contains('single-note share'));
+  });
+
+  test('fileNameOf prefers imported title when stored name is the sandbox id', () {
+    expect(NotesExport.fileNameOf(document), 'Notes on method.pdf');
+    expect(
+      NotesExport.fileNameOf(
+        LibraryDocument(
+          id: 'abc',
+          title: 'Lecture notes',
+          storedName: 'Original Lecture.pdf',
+          importedAt: DateTime.utc(2026, 9, 13),
+        ),
+      ),
+      'Original Lecture.pdf',
+    );
   });
 
   test('JSON export and snippets include heading and subheading from outline', () {
@@ -144,5 +163,95 @@ void main() {
     expect(files.last.readAsStringSync(), contains('shelf-notes-v1'));
     expect(files.last.readAsStringSync(), contains('heading'));
     expect(files.last.readAsStringSync(), contains('subheading'));
+    expect(files.first.readAsStringSync(), contains('"file_name": "Notes on method.pdf"'));
+  });
+
+  test('single-note JSON is a one-item shelf-notes-v1 envelope', () async {
+    final dir = await Directory.systemTemp.createTemp('shelf-single-note-');
+    addTearDown(() => dir.delete(recursive: true));
+    ColorLabel labelById(String id) =>
+        ColorLabel.seedDefaults().firstWhere((item) => item.id == id);
+    final outline = PdfSectionResolver.flattenDraft(const [
+      OutlineDraft(
+        title: 'Chapter 3 Method',
+        page: 2,
+        y: 0.05,
+        children: [
+          OutlineDraft(title: '3.2 Standing remark', page: 2, y: 0.10),
+        ],
+      ),
+    ]);
+    final files = await NotesExport.writeSingleNoteFiles(
+      document: document,
+      note: note,
+      labelById: labelById,
+      kind: SingleNoteShareKind.noteOnly,
+      directory: dir,
+      exportedAt: DateTime.utc(2026, 9, 14),
+      outline: outline,
+    );
+    expect(files, hasLength(1));
+    expect(files.single.path, endsWith('Notes-on-method-note.json'));
+    final payload = jsonDecode(files.single.readAsStringSync()) as Map<String, dynamic>;
+    expect(payload['schema'], NotesExport.schemaId);
+    final doc = payload['document']! as Map<String, dynamic>;
+    expect(doc['id'], 'pdf-1');
+    expect(doc['title'], 'Notes on method');
+    expect(doc['file_name'], 'Notes on method.pdf');
+    final notes = payload['notes']! as List<dynamic>;
+    expect(notes, hasLength(1));
+    final row = notes.single as Map<String, dynamic>;
+    expect(row['text'], 'Come back to this diagram.');
+    expect(row['page'], 2);
+    expect(row['selected_text'], 'method');
+    expect(row['heading'], 'Chapter 3 Method');
+    expect(row['subheading'], '3.2 Standing remark');
+    expect(row['label'], isA<Map<String, dynamic>>());
+  });
+
+  test('single-note share kinds attach PDF and guide as requested', () async {
+    final dir = await Directory.systemTemp.createTemp('shelf-single-kinds-');
+    addTearDown(() => dir.delete(recursive: true));
+    ColorLabel labelById(String id) =>
+        ColorLabel.seedDefaults().firstWhere((item) => item.id == id);
+    final pdfBytes = [0x25, 0x50, 0x44, 0x46]; // %PDF
+
+    final all = await NotesExport.writeSingleNoteFiles(
+      document: document,
+      note: note,
+      labelById: labelById,
+      kind: SingleNoteShareKind.notePdfGuide,
+      directory: Directory('${dir.path}/all')..createSync(),
+      pdfBytes: pdfBytes,
+    );
+    expect(all.map((file) => file.uri.pathSegments.last).toList(), [
+      'Notes-on-method-note.json',
+      'Notes-on-method-note-schema.md',
+      'Notes on method.pdf',
+    ]);
+    expect(all.last.readAsBytesSync(), pdfBytes);
+    expect(all[1].readAsStringSync(), contains('shelf-notes-v1'));
+
+    final pdfOnly = await NotesExport.writeSingleNoteFiles(
+      document: document,
+      note: note,
+      labelById: labelById,
+      kind: SingleNoteShareKind.notePdf,
+      directory: Directory('${dir.path}/pdf')..createSync(),
+      pdfBytes: pdfBytes,
+    );
+    expect(pdfOnly, hasLength(2));
+    expect(pdfOnly.last.path, endsWith('Notes on method.pdf'));
+
+    final guide = await NotesExport.writeSingleNoteFiles(
+      document: document,
+      note: note,
+      labelById: labelById,
+      kind: SingleNoteShareKind.noteGuide,
+      directory: Directory('${dir.path}/guide')..createSync(),
+      pdfBytes: pdfBytes,
+    );
+    expect(guide, hasLength(2));
+    expect(guide.last.path, endsWith('Notes-on-method-note-schema.md'));
   });
 }

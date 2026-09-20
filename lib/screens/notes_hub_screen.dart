@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../data/shelf_store.dart';
 import '../models/note.dart';
 import '../services/note_page_target.dart';
+import '../services/notes_export.dart';
 import '../services/pdf_outline_source.dart';
 import '../theme/shelf_theme.dart';
 import '../widgets/ask_about_note.dart';
@@ -174,15 +175,19 @@ class _NoteTile extends StatelessWidget {
         ),
         trailing: IconButton(
           key: Key('ask-about-note-${note.id}'),
-          tooltip: 'Ask about this note',
+          tooltip: 'Ask AI',
           icon: const Icon(Icons.auto_awesome_outlined),
           onPressed: () {
-            AskAboutNoteButton.open(
+            AskAboutNoteButton.choose(
               context,
               noteText: note.text,
               selectedText: note.selection?.text,
               documentTitle: document?.title,
+              document: document,
               page: note.page,
+              x: note.x,
+              y: note.y,
+              colorLabelId: note.colorLabelId,
               note: note,
               loadSections: document == null
                   ? null
@@ -191,7 +196,9 @@ class _NoteTile extends StatelessWidget {
                       store.pdfPath,
                     ),
               offerPdf: document != null,
-              pdfFileName: document == null ? null : '${document.title}.pdf',
+              pdfFileName: document == null
+                  ? null
+                  : NotesExport.fileNameOf(document),
               loadPdf: document == null
                   ? null
                   : () async {
@@ -202,6 +209,8 @@ class _NoteTile extends StatelessWidget {
                         return null;
                       }
                     },
+              labels: store.labels,
+              labelById: store.labelById,
             );
           },
         ),
