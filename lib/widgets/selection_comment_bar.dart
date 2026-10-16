@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../theme/shelf_theme.dart';
 
 /// Shown while pdfrx text-selection handles are active.
+///
+/// Icon card: Add comment and Done. No on-screen instruction.
 class SelectionCommentBar extends StatelessWidget {
   const SelectionCommentBar({
     super.key,
@@ -20,29 +22,46 @@ class SelectionCommentBar extends StatelessWidget {
     return Material(
       key: const Key('pdf-selection-comment-bar'),
       color: ShelfColors.white,
-      elevation: 3,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Row(
-          children: [
-            const Expanded(
-              child: Text(
-                'Drag the handles to widen the word.',
-                style: TextStyle(fontSize: 13, color: ShelfColors.muted),
+      elevation: 12,
+      shadowColor: Colors.black26,
+      borderRadius: BorderRadius.circular(16),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 232, maxWidth: 280),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FilledButton.icon(
+                key: const Key('pdf-selection-add-comment'),
+                onPressed: hasSelection ? onAddComment : null,
+                icon: const Icon(Icons.add_comment_outlined, size: 20),
+                label: const Text('Add comment'),
+                style: FilledButton.styleFrom(
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  minimumSize: const Size(216, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
-            ),
-            TextButton(
-              key: const Key('pdf-selection-done'),
-              onPressed: onDone,
-              child: const Text('Done'),
-            ),
-            FilledButton(
-              key: const Key('pdf-selection-add-comment'),
-              onPressed: hasSelection ? onAddComment : null,
-              child: const Text('Add comment'),
-            ),
-          ],
+              TextButton.icon(
+                key: const Key('pdf-selection-done'),
+                onPressed: onDone,
+                icon: const Icon(Icons.check, size: 20),
+                label: const Text('Done'),
+                style: TextButton.styleFrom(
+                  foregroundColor: ShelfColors.ink,
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  minimumSize: const Size(216, 48),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
