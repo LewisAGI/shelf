@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../theme/shelf_theme.dart';
 
 /// Shown while pdfrx text-selection handles are active.
+///
+/// Icon card: Add comment and Done. No on-screen instruction.
 class SelectionCommentBar extends StatelessWidget {
   const SelectionCommentBar({
     super.key,
@@ -20,27 +22,26 @@ class SelectionCommentBar extends StatelessWidget {
     return Material(
       key: const Key('pdf-selection-comment-bar'),
       color: ShelfColors.white,
-      elevation: 3,
-      borderRadius: BorderRadius.circular(12),
+      elevation: 12,
+      shadowColor: Colors.black26,
+      borderRadius: BorderRadius.circular(16),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Row(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Expanded(
-              child: Text(
-                'Drag the handles to widen the word.',
-                style: TextStyle(fontSize: 13, color: ShelfColors.muted),
-              ),
-            ),
-            TextButton(
-              key: const Key('pdf-selection-done'),
-              onPressed: onDone,
-              child: const Text('Done'),
-            ),
-            FilledButton(
+            IconButton(
               key: const Key('pdf-selection-add-comment'),
+              tooltip: 'Add comment',
               onPressed: hasSelection ? onAddComment : null,
-              child: const Text('Add comment'),
+              icon: const Icon(Icons.add_comment_outlined),
+            ),
+            IconButton(
+              key: const Key('pdf-selection-done'),
+              tooltip: 'Done',
+              color: ShelfColors.ink,
+              onPressed: onDone,
+              icon: const Icon(Icons.check),
             ),
           ],
         ),

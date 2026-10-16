@@ -23,7 +23,7 @@ class ShelfColors {
 }
 
 class ShelfTheme {
-  static ThemeData light() {
+  static ThemeData light({String? fontFamily}) {
     const orange = ShelfColors.orange;
     final scheme = ColorScheme.light(
       primary: orange,
@@ -36,11 +36,60 @@ class ShelfTheme {
       outline: ShelfColors.hairline,
     );
 
+    const ink = TextStyle(color: ShelfColors.ink);
+    final text = TextTheme(
+      headlineLarge: ink.copyWith(
+        fontSize: 34,
+        height: 1.05,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.8,
+      ),
+      headlineMedium: ink.copyWith(
+        fontSize: 28,
+        height: 1.1,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.6,
+      ),
+      titleLarge: ink.copyWith(
+        fontSize: 20,
+        height: 1.2,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.3,
+      ),
+      titleMedium: ink.copyWith(
+        fontSize: 17,
+        height: 1.25,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.2,
+      ),
+      titleSmall: ink.copyWith(
+        fontSize: 15,
+        height: 1.3,
+        fontWeight: FontWeight.w600,
+      ),
+      bodyLarge: ink.copyWith(fontSize: 16, height: 1.4),
+      bodyMedium: ink.copyWith(fontSize: 15, height: 1.4),
+      bodySmall: const TextStyle(
+        color: ShelfColors.muted,
+        fontSize: 13,
+        height: 1.35,
+      ),
+      labelLarge: ink.copyWith(fontSize: 14, fontWeight: FontWeight.w600),
+      labelSmall: const TextStyle(
+        color: ShelfColors.muted,
+        fontSize: 12,
+        height: 1.2,
+        fontWeight: FontWeight.w500,
+      ),
+    );
+
     return ThemeData(
       useMaterial3: true,
+      fontFamily: fontFamily,
       colorScheme: scheme,
+      textTheme: fontFamily == null ? text : text.apply(fontFamily: fontFamily),
       scaffoldBackgroundColor: ShelfColors.white,
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: ShelfColors.white,
         foregroundColor: ShelfColors.ink,
         elevation: 0,
@@ -48,10 +97,41 @@ class ShelfTheme {
         centerTitle: false,
         titleTextStyle: TextStyle(
           color: ShelfColors.ink,
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
+          fontSize: 17,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.2,
+          fontFamily: fontFamily,
         ),
-        iconTheme: IconThemeData(color: ShelfColors.orange),
+        iconTheme: const IconThemeData(color: ShelfColors.orange),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: ShelfColors.white,
+        elevation: 12,
+        shadowColor: Colors.black26,
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(16)),
+        ),
+        textStyle: TextStyle(
+          color: ShelfColors.ink,
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          fontFamily: fontFamily,
+        ),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: ShelfColors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+      ),
+      dialogTheme: const DialogThemeData(
+        backgroundColor: ShelfColors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(20)),
+        ),
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: ShelfColors.orange,

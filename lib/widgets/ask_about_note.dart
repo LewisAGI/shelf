@@ -14,6 +14,7 @@ import '../services/pdf_section_resolver.dart';
 import '../theme/shelf_theme.dart';
 import 'ai_scope.dart';
 import 'ai_send_scope.dart';
+import 'markdown_preview_sheet.dart';
 import 'note_share_sheet.dart';
 
 typedef PdfBytesLoader = Future<List<int>?> Function();
@@ -360,6 +361,24 @@ class AskAboutNoteButton extends StatelessWidget {
       pdfFileName: pdfFileName,
       note: exportNote,
     );
+    if (kind.includeGuide) {
+      if (!context.mounted) {
+        return;
+      }
+      final share = await MarkdownPreviewSheet.show(
+        context,
+        fileName: exportDocument.title,
+        markdown: NotesExport.previewMarkdown(
+          documentTitle: exportDocument.title,
+          notes: [exportNote],
+          labelById: labelById ?? _labelLookup(labels),
+          outline: resolvedSections,
+        ),
+      );
+      if (!share || !context.mounted) {
+        return;
+      }
+    }
     try {
       await exportSingleNote(
         document: exportDocument,

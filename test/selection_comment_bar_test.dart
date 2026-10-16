@@ -23,15 +23,16 @@ void main() {
       ),
     );
 
-    expect(find.text('Add comment'), findsOneWidget);
-    expect(find.text('Done'), findsOneWidget);
+    expect(find.text('Add comment'), findsNothing);
+    expect(find.text('Done'), findsNothing);
+    final disabled = tester.widget<IconButton>(
+      find.byKey(const Key('pdf-selection-add-comment')),
+    );
+    expect(disabled.tooltip, 'Add comment');
+    expect(disabled.onPressed, isNull);
     expect(
-      tester
-          .widget<FilledButton>(
-            find.byKey(const Key('pdf-selection-add-comment')),
-          )
-          .onPressed,
-      isNull,
+      tester.widget<IconButton>(find.byKey(const Key('pdf-selection-done'))).tooltip,
+      'Done',
     );
 
     await tester.pumpWidget(

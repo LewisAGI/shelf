@@ -104,10 +104,10 @@ void main() {
 
   testWidgets('library card menu lists export, send, and view', (tester) async {
     await pumpLibrary(tester);
-    expect(find.byKey(const Key('library-highlight-tip')), findsOneWidget);
+    expect(find.byKey(const Key('library-highlight-tip')), findsNothing);
     expect(
-      find.text(LibraryScreen.highlightTip),
-      findsOneWidget,
+      find.textContaining('Highlights read more clearly'),
+      findsNothing,
     );
     await tester.tap(find.byKey(const Key('library-card-menu-pdf-1')));
     await tester.pump();

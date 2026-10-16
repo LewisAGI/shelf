@@ -20,6 +20,7 @@ import '../widgets/note_marker.dart';
 import '../widgets/page_jump_sheet.dart';
 import '../widgets/page_press_menu.dart';
 import '../widgets/pdf_selection_chrome.dart';
+import '../widgets/reader_menu.dart';
 import '../widgets/selection_comment_bar.dart';
 
 class ReaderScreen extends StatefulWidget {
@@ -686,6 +687,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   : Icons.visibility_off_outlined,
             ),
           ),
+          ReaderOverflowMenu(
+            showMarkers: _showMarkers,
+            onToggleMarkers: () => setState(() => _showMarkers = !_showMarkers),
+            onChapters: _showJump,
+          ),
         ],
       ),
       body: ListenableBuilder(
@@ -771,16 +777,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         if (_selectionEnabled)
                           Positioned(
                             top: 12,
-                            left: 12,
-                            right: 12,
-                            child: SelectionCommentBar(
-                              hasSelection: _hasActiveSelection,
-                              onAddComment: () {
-                                unawaited(_createNoteFromSelection());
-                              },
-                              onDone: () {
-                                unawaited(_exitSelectionMode());
-                              },
+                            left: 0,
+                            right: 0,
+                            child: Center(
+                              child: SelectionCommentBar(
+                                hasSelection: _hasActiveSelection,
+                                onAddComment: () {
+                                  unawaited(_createNoteFromSelection());
+                                },
+                                onDone: () {
+                                  unawaited(_exitSelectionMode());
+                                },
+                              ),
                             ),
                           ),
                       ];
@@ -800,7 +808,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             decoration: const BoxDecoration(
               border: Border(top: BorderSide(color: ShelfColors.hairline)),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: Row(
               children: [
                 IconButton(
@@ -810,11 +818,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 ),
                 Expanded(
                   child: Text(
-                    _ready
-                        ? 'Page $_page of $_pageCount'
-                        : 'Opening PDF…',
+                    _ready ? 'Page $_page of $_pageCount' : 'Opening PDF…',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.2,
+                      color: ShelfColors.ink,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -827,7 +838,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 IconButton(
                   tooltip: 'Jump to page or chapter',
                   onPressed: _ready ? _showJump : null,
-                  icon: const Icon(Icons.unfold_more),
+                  icon: const Icon(Icons.list_alt_outlined),
                 ),
               ],
             ),

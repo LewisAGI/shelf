@@ -14,6 +14,8 @@ import '../services/pdf_outline_source.dart';
 import '../services/pdf_section_resolver.dart';
 import '../theme/shelf_theme.dart';
 import '../widgets/ask_about_note.dart';
+import '../widgets/markdown_preview_sheet.dart';
+import '../widgets/shelf_menu_label.dart';
 import 'reader_screen.dart';
 
 class LibraryScreen extends StatelessWidget {
@@ -44,9 +46,6 @@ class LibraryScreen extends StatelessWidget {
       );
     }
   }
-
-  static const highlightTip =
-      'Highlights read more clearly on black-and-white or light-background PDFs.';
 
   static Future<void> exportDocumentComments({
     required LibraryDocument document,
@@ -90,6 +89,23 @@ class LibraryScreen extends StatelessWidget {
         document,
         store.pdfPath,
       );
+      if (!context.mounted) {
+        return;
+      }
+      final notes = store.notesForDocument(document.id);
+      final share = await MarkdownPreviewSheet.show(
+        context,
+        fileName: document.title,
+        markdown: NotesExport.previewMarkdown(
+          documentTitle: document.title,
+          notes: notes,
+          labelById: store.labelById,
+          outline: outline,
+        ),
+      );
+      if (!share || !context.mounted) {
+        return;
+      }
       await exportDocumentComments(
         document: document,
         notes: store.notesForDocument(document.id),
@@ -160,124 +176,87 @@ class LibraryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('d MMM y');
     return Scaffold(
-      appBar: AppBar(title: const Text('Library')),
-      body: ListenableBuilder(
-        listenable: store,
-        builder: (context, _) {
-          if (store.documents.isEmpty) {
-            return _EmptyLibrary(onImport: () => _import(context));
-          }
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
-                child: Text(
-                  highlightTip,
-                  key: Key('library-highlight-tip'),
-                  style: TextStyle(
-                    color: ShelfColors.muted,
-                    fontSize: 13,
-                    height: 1.35,
+      body: SafeArea(
+        child: ListenableBuilder(
+          listenable: store,
+          builder: (context, _) {
+            if (store.documents.isEmpty) {
+              return const _EmptyLibrary();
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  child: Text(
+                    'Library',
+                    style: TextStyle(
+                      color: ShelfColors.ink,
+                      fontSize: 34,
+                      height: 1.05,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.8,
+                    ),
                   ),
                 ),
-              ),
-              Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
-                  itemCount: store.documents.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final document = store.documents[index];
-                    final noteCount = store.notesForDocument(document.id).length;
-                    return Dismissible(
-                      key: ValueKey(document.id),
-                      direction: DismissDirection.endToStart,
-                      background: Container(
-                        alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.only(right: 20),
-                        color: const Color(0xFFB91C1C),
-                        child: const Icon(
-                          Icons.delete_outline,
-                          color: Colors.white,
+                Expanded(
+                  child: GridView.builder(
+                    key: const Key('library-grid'),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 112),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 0.72,
+                    ),
+                    itemCount: store.documents.length,
+                    itemBuilder: (context, index) {
+                      final document = store.documents[index];
+                      final noteCount = store.notesForDocument(document.id).length;
+                      return Dismissible(
+                        key: ValueKey(document.id),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFB91C1C),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
-                      confirmDismiss: (_) async {
-                        final confirmed = await showDialog<bool>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Remove from library?'),
-                            content: Text(
-                              '“${document.title}” and its notes will be deleted from this phone.',
+                        confirmDismiss: (_) async {
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Remove from library?'),
+                              content: Text(
+                                '“${document.title}” and its notes will be deleted from this phone.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, false),
+                                  child: const Text('Keep'),
+                                ),
+                                FilledButton(
+                                  onPressed: () => Navigator.pop(context, true),
+                                  child: const Text('Remove'),
+                                ),
+                              ],
                             ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, false),
-                                child: const Text('Keep'),
-                              ),
-                              FilledButton(
-                                onPressed: () => Navigator.pop(context, true),
-                                child: const Text('Remove'),
-                              ),
-                            ],
-                          ),
-                        );
-                        return confirmed ?? false;
-                      },
-                      onDismissed: (_) => store.removeDocument(document),
-                      child: Material(
-                        color: ShelfColors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          side: const BorderSide(color: ShelfColors.hairline),
-                        ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          leading: const Icon(
-                            Icons.picture_as_pdf_outlined,
-                            color: ShelfColors.orange,
-                            size: 32,
-                          ),
-                          title: Text(document.title),
-                          subtitle: Text(
-                            [
-                              'Imported ${dateFormat.format(document.importedAt)}',
-                              if (document.pageCount != null)
-                                '${document.pageCount} pages',
-                              '$noteCount ${noteCount == 1 ? 'note' : 'notes'}',
-                            ].join(' · '),
-                          ),
-                          trailing: Builder(
-                            builder: (menuContext) {
-                              return PopupMenuButton<String>(
-                                key: Key('library-card-menu-${document.id}'),
-                                tooltip: 'Book actions',
-                                onSelected: (value) =>
-                                    _onMenu(menuContext, document, value),
-                                itemBuilder: (context) => const [
-                                  PopupMenuItem(
-                                    key: Key('library-card-export-comments'),
-                                    value: 'export',
-                                    child: Text('Export comments'),
-                                  ),
-                                  PopupMenuItem(
-                                    key: Key('library-card-send-to-ai'),
-                                    value: 'send',
-                                    child: Text('Send to connected AI'),
-                                  ),
-                                  PopupMenuItem(
-                                    key: Key('library-card-view-comments'),
-                                    value: 'view',
-                                    child: Text('View all comments'),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                          onTap: () {
+                          );
+                          return confirmed ?? false;
+                        },
+                        onDismissed: (_) => store.removeDocument(document),
+                        child: _LibraryCoverCard(
+                          document: document,
+                          noteCount: noteCount,
+                          imported: dateFormat.format(document.importedAt),
+                          cover: _covers[index % _covers.length],
+                          onOpen: () {
                             Navigator.of(context).push(
                               MaterialPageRoute<void>(
                                 builder: (_) => ReaderScreen(
@@ -287,64 +266,249 @@ class LibraryScreen extends StatelessWidget {
                               ),
                             );
                           },
+                          onMenu: (menuContext, value) =>
+                              _onMenu(menuContext, document, value),
                         ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Import PDF',
+        onPressed: () => _import(context),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+class _CoverStyle {
+  const _CoverStyle({
+    required this.background,
+    required this.foreground,
+    required this.accent,
+  });
+
+  final Color background;
+  final Color foreground;
+  final Color accent;
+}
+
+const _covers = <_CoverStyle>[
+  _CoverStyle(
+    background: ShelfColors.ink,
+    foreground: ShelfColors.white,
+    accent: ShelfColors.orange,
+  ),
+  _CoverStyle(
+    background: ShelfColors.orange,
+    foreground: ShelfColors.white,
+    accent: ShelfColors.orangeSoft,
+  ),
+  _CoverStyle(
+    background: ShelfColors.orangePressed,
+    foreground: ShelfColors.white,
+    accent: ShelfColors.white,
+  ),
+  _CoverStyle(
+    background: ShelfColors.orangeSoft,
+    foreground: ShelfColors.ink,
+    accent: ShelfColors.orange,
+  ),
+];
+
+class _LibraryCoverCard extends StatelessWidget {
+  const _LibraryCoverCard({
+    required this.document,
+    required this.noteCount,
+    required this.imported,
+    required this.cover,
+    required this.onOpen,
+    required this.onMenu,
+  });
+
+  final LibraryDocument document;
+  final int noteCount;
+  final String imported;
+  final _CoverStyle cover;
+  final VoidCallback onOpen;
+  final void Function(BuildContext menuContext, String value) onMenu;
+
+  String get _initials {
+    final words = document.title
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
+        .take(2)
+        .map((word) => word[0].toUpperCase())
+        .join();
+    if (words.isNotEmpty) {
+      return words;
+    }
+    return 'PDF';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final meta = [
+      imported,
+      if (document.pageCount != null) '${document.pageCount} pages',
+      '$noteCount ${noteCount == 1 ? 'note' : 'notes'}',
+    ].join(' · ');
+    return Material(
+      color: cover.background,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: InkWell(
+              onTap: onOpen,
+              splashColor: cover.foreground.withValues(alpha: 0.12),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 52, 14, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _initials,
+                      style: TextStyle(
+                        fontSize: 40,
+                        height: 1,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -1.4,
+                        color: cover.foreground.withValues(alpha: 0.22),
                       ),
-                    );
-                  },
+                    ),
+                    const Spacer(),
+                    Container(
+                      width: 28,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: cover.accent,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      document.title,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: cover.foreground,
+                        fontSize: 16,
+                        height: 1.2,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      meta,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: cover.foreground.withValues(alpha: 0.78),
+                        fontSize: 12,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _import(context),
-        icon: const Icon(Icons.add),
-        label: const Text('Import PDF'),
+            ),
+          ),
+          Positioned(
+            right: 0,
+            top: 0,
+            child: Builder(
+              builder: (menuContext) {
+                return PopupMenuButton<String>(
+                  key: Key('library-card-menu-${document.id}'),
+                  tooltip: 'Book actions',
+                  icon: Icon(Icons.more_horiz, color: cover.foreground),
+                  onSelected: (value) => onMenu(menuContext, value),
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      key: Key('library-card-export-comments'),
+                      value: 'export',
+                      child: ShelfMenuLabel(
+                        icon: Icons.ios_share_outlined,
+                        label: 'Export comments',
+                      ),
+                    ),
+                    PopupMenuItem(
+                      key: Key('library-card-send-to-ai'),
+                      value: 'send',
+                      child: ShelfMenuLabel(
+                        icon: Icons.auto_awesome_outlined,
+                        label: 'Send to connected AI',
+                      ),
+                    ),
+                    PopupMenuItem(
+                      key: Key('library-card-view-comments'),
+                      value: 'view',
+                      child: ShelfMenuLabel(
+                        icon: Icons.sticky_note_2_outlined,
+                        label: 'View all comments',
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
 class _EmptyLibrary extends StatelessWidget {
-  const _EmptyLibrary({required this.onImport});
-
-  final VoidCallback onImport;
+  const _EmptyLibrary();
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.menu_book_outlined,
-              size: 56,
-              color: ShelfColors.orange,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
+          child: Text(
+            'Library',
+            style: TextStyle(
+              color: ShelfColors.ink,
+              fontSize: 34,
+              height: 1.05,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.8,
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Your shelf is empty',
-              style: Theme.of(context).textTheme.headlineSmall,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Import a learning PDF from your files. Notes you dictate stay on this phone.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: ShelfColors.muted, height: 1.4),
-            ),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: onImport,
-              icon: const Icon(Icons.add),
-              label: const Text('Import a PDF'),
-            ),
-          ],
+          ),
         ),
-      ),
+        const Expanded(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.menu_book_outlined,
+                  size: 48,
+                  color: ShelfColors.orange,
+                ),
+                SizedBox(height: 12),
+                Text(
+                  'Nothing here yet',
+                  style: TextStyle(color: ShelfColors.muted, fontSize: 15),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
