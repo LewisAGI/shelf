@@ -223,6 +223,82 @@ void main() {
     expect(fake.lastAsk, isNull);
   });
 
+  Future<void> openGuidePreview(WidgetTester tester) async {
+    await pumpScoped(
+      tester,
+      Scaffold(
+        body: NoteEditor(
+          labels: ColorLabel.seedDefaults(),
+          defaultLabelId: ColorLabel.orangeId,
+          speech: SpeechCapture(),
+          note: note,
+          document: document,
+          documentTitle: document.title,
+          quotedText: note.selection?.text,
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('ask-about-note')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(const Key('export-share-note')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(const Key('export-note-guide')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+  }
+
+  testWidgets('single-note guide preview share sends the note and schema', (
+    tester,
+  ) async {
+    final shared = <String>[];
+    ExportShare.override = (paths, subject) async {
+      shared
+        ..clear()
+        ..addAll(paths);
+    };
+    await openGuidePreview(tester);
+    expect(find.byKey(const Key('markdown-preview-sheet')), findsOneWidget);
+    expect(find.text('Notes-on-method-note-schema.md'), findsOneWidget);
+    expect(find.textContaining('Come back to this diagram.'), findsWidgets);
+    expect(find.textContaining('method'), findsWidgets);
+    expect(find.textContaining('Shelf notes export schema'), findsOneWidget);
+    expect(shared, isEmpty);
+
+    await tester.tap(find.byKey(const Key('markdown-preview-share')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+
+    expect(shared, hasLength(2));
+    expect(shared.any((path) => path.endsWith('-note.json')), isTrue);
+    expect(shared.any((path) => path.endsWith('-note-schema.md')), isTrue);
+    expect(ExportShare.lastSharePositionOrigin, isNotNull);
+    expect(ExportShare.lastSharePositionOrigin, isNot(Rect.zero));
+    expect(ExportShare.lastSharePositionOrigin!.width, greaterThan(0));
+  });
+
+  testWidgets('closing the single-note guide preview shares nothing', (
+    tester,
+  ) async {
+    var shared = false;
+    ExportShare.override = (paths, subject) async {
+      shared = true;
+    };
+    await openGuidePreview(tester);
+    await tester.tap(find.byKey(const Key('markdown-preview-close')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+    });
+    await tester.pump();
+    expect(shared, isFalse);
+    expect(ExportShare.lastSharePositionOrigin, isNull);
+    expect(find.byKey(const Key('markdown-preview-sheet')), findsNothing);
+  });
+
   testWidgets('Notes hub Ask AI opens the same chooser', (tester) async {
     await pumpScoped(tester, NotesHubScreen(store: store));
 

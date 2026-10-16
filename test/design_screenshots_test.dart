@@ -305,8 +305,10 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
 
-      final schema = NotesExport.schemaMarkdown(
+      final schema = NotesExport.previewMarkdown(
         documentTitle: 'Design Language',
+        notes: store.notes,
+        labelById: store.labelById,
       );
       await tester.pumpWidget(
         RepaintBoundary(

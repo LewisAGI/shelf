@@ -10,6 +10,7 @@ import 'package:shelf/models/note.dart';
 import 'package:shelf/models/note_selection.dart';
 import 'package:shelf/screens/library_screen.dart';
 import 'package:shelf/screens/notes_hub_screen.dart';
+import 'package:shelf/screens/reader_screen.dart';
 import 'package:shelf/services/ai_secure_storage.dart';
 import 'package:shelf/services/ai_settings_controller.dart';
 import 'package:shelf/services/export_share.dart';
@@ -156,9 +157,23 @@ void main() {
     expect(find.byType(SnackBar), findsNothing);
     expect(find.byKey(const Key('markdown-preview-sheet')), findsOneWidget);
     expect(find.text('Notes-on-method-notes-schema.md'), findsOneWidget);
+    expect(find.textContaining('Come back to this diagram.'), findsOneWidget);
+    expect(find.textContaining('Check the later chapter.'), findsOneWidget);
     expect(find.textContaining('Shelf notes export schema'), findsOneWidget);
     expect(find.byKey(const Key('markdown-preview-share')), findsOneWidget);
     expect(shared, isEmpty);
+
+    await tester.tap(find.byKey(const Key('markdown-preview-share')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+
+    expect(shared, hasLength(2));
+    expect(shared.any((path) => path.endsWith('-notes.json')), isTrue);
+    expect(shared.any((path) => path.endsWith('-notes-schema.md')), isTrue);
+    expect(ExportShare.lastSharePositionOrigin, isNotNull);
+    expect(ExportShare.lastSharePositionOrigin, isNot(Rect.zero));
+    expect(ExportShare.lastSharePositionOrigin!.width, greaterThan(0));
   });
 
   testWidgets('closing the markdown preview does not share', (tester) async {
@@ -176,7 +191,12 @@ void main() {
     await tester.tap(find.byKey(const Key('markdown-preview-close')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+    });
+    await tester.pump();
     expect(shared, isFalse);
+    expect(ExportShare.lastSharePositionOrigin, isNull);
     expect(find.byKey(const Key('markdown-preview-sheet')), findsNothing);
   });
 
@@ -238,6 +258,52 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(copied, 'Come back to this diagram.');
+  });
+
+  testWidgets('copy highlight and copy note write the quote and the comment', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ShelfTheme.light(),
+        home: NotesHubScreen(store: store),
+      ),
+    );
+    await tester.pump();
+
+    final copied = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          final args = call.arguments as Map<Object?, Object?>;
+          copied.add(args['text']! as String);
+        }
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+    });
+
+    await tester.longPress(find.text('Come back to this diagram.'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(const Key('note-menu-copy-highlight-note-1')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.longPress(find.text('Come back to this diagram.'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(const Key('note-menu-copy-note-note-1')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(copied, ['method', 'Come back to this diagram.']);
   });
 
   testWidgets('colour filter is a popup, not a chip row', (tester) async {
@@ -314,10 +380,24 @@ void main() {
         ),
       ),
     );
-    expect(find.text('Add comment'), findsOneWidget);
-    expect(find.text('Done'), findsOneWidget);
+    expect(find.text('Add comment'), findsNothing);
+    expect(find.text('Done'), findsNothing);
     expect(find.text('Drag the handles to widen the word.'), findsNothing);
+    expect(
+      tester
+          .widget<IconButton>(find.byKey(const Key('pdf-selection-add-comment')))
+          .tooltip,
+      'Add comment',
+    );
+    expect(
+      tester.widget<IconButton>(find.byKey(const Key('pdf-selection-done'))).tooltip,
+      'Done',
+    );
     expect(find.byIcon(Icons.add_comment_outlined), findsOneWidget);
+    await tester.longPress(find.byKey(const Key('pdf-selection-add-comment')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.text('Add comment'), findsOneWidget);
     final add = tester.getTopLeft(find.byKey(const Key('pdf-selection-add-comment')));
     final done = tester.getTopLeft(find.byKey(const Key('pdf-selection-done')));
     expect(done.dy, greaterThan(add.dy));
@@ -408,6 +488,31 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(chapters, 1);
     expect(markers, 0);
+  });
+
+  testWidgets('reader overflow Chapters opens the chapters sheet', (tester) async {
+    tester.view.physicalSize = const Size(400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final document = store.documentById('pdf-1')!;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ShelfTheme.light(),
+        home: ReaderScreen(store: store, document: document),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('reader-overflow-menu')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byKey(const Key('reader-menu-chapters')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.byKey(const Key('chapters-sheet')), findsOneWidget);
+    expect(find.text('Chapters'), findsWidgets);
+    expect(find.text('${document.pageCount} pages'), findsOneWidget);
   });
 
   testWidgets('markdown body renders a heading and a bullet', (tester) async {

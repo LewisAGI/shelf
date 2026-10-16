@@ -369,8 +369,11 @@ class AskAboutNoteButton extends StatelessWidget {
         context,
         fileName:
             '${NotesExport.safeFileStem(exportDocument.title)}-note-schema.md',
-        markdown: NotesExport.schemaMarkdown(
+        markdown: NotesExport.previewMarkdown(
           documentTitle: exportDocument.title,
+          notes: [exportNote],
+          labelById: labelById ?? _labelLookup(labels),
+          outline: resolvedSections,
         ),
       );
       if (!share || !context.mounted) {

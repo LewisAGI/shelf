@@ -47,9 +47,6 @@ class LibraryScreen extends StatelessWidget {
     }
   }
 
-  static const highlightTip =
-      'Highlights read more clearly on black-and-white or light-background PDFs.';
-
   static Future<void> exportDocumentComments({
     required LibraryDocument document,
     required List<Note> notes,
@@ -95,10 +92,16 @@ class LibraryScreen extends StatelessWidget {
       if (!context.mounted) {
         return;
       }
+      final notes = store.notesForDocument(document.id);
       final share = await MarkdownPreviewSheet.show(
         context,
         fileName: '${NotesExport.safeFileStem(document.title)}-notes-schema.md',
-        markdown: NotesExport.schemaMarkdown(documentTitle: document.title),
+        markdown: NotesExport.previewMarkdown(
+          documentTitle: document.title,
+          notes: notes,
+          labelById: store.labelById,
+          outline: outline,
+        ),
       );
       if (!share || !context.mounted) {
         return;
@@ -193,18 +196,6 @@ class LibraryScreen extends StatelessWidget {
                       height: 1.05,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.8,
-                    ),
-                  ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(20, 8, 20, 4),
-                  child: Text(
-                    highlightTip,
-                    key: Key('library-highlight-tip'),
-                    style: TextStyle(
-                      color: ShelfColors.muted,
-                      fontSize: 13,
-                      height: 1.35,
                     ),
                   ),
                 ),

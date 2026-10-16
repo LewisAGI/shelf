@@ -25,43 +25,25 @@ class SelectionCommentBar extends StatelessWidget {
       elevation: 12,
       shadowColor: Colors.black26,
       borderRadius: BorderRadius.circular(16),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 232, maxWidth: 280),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              FilledButton.icon(
-                key: const Key('pdf-selection-add-comment'),
-                onPressed: hasSelection ? onAddComment : null,
-                icon: const Icon(Icons.add_comment_outlined, size: 20),
-                label: const Text('Add comment'),
-                style: FilledButton.styleFrom(
-                  alignment: Alignment.centerLeft,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  minimumSize: const Size(216, 48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              TextButton.icon(
-                key: const Key('pdf-selection-done'),
-                onPressed: onDone,
-                icon: const Icon(Icons.check, size: 20),
-                label: const Text('Done'),
-                style: TextButton.styleFrom(
-                  foregroundColor: ShelfColors.ink,
-                  alignment: Alignment.centerLeft,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  minimumSize: const Size(216, 48),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-            ],
-          ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              key: const Key('pdf-selection-add-comment'),
+              tooltip: 'Add comment',
+              onPressed: hasSelection ? onAddComment : null,
+              icon: const Icon(Icons.add_comment_outlined),
+            ),
+            IconButton(
+              key: const Key('pdf-selection-done'),
+              tooltip: 'Done',
+              color: ShelfColors.ink,
+              onPressed: onDone,
+              icon: const Icon(Icons.check),
+            ),
+          ],
         ),
       ),
     );
