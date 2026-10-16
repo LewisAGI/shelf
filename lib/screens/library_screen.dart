@@ -95,7 +95,7 @@ class LibraryScreen extends StatelessWidget {
       final notes = store.notesForDocument(document.id);
       final share = await MarkdownPreviewSheet.show(
         context,
-        fileName: '${NotesExport.safeFileStem(document.title)}-notes-schema.md',
+        fileName: document.title,
         markdown: NotesExport.previewMarkdown(
           documentTitle: document.title,
           notes: notes,

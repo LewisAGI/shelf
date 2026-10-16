@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/shelf_theme.dart';
 
-/// Grok-style preview of an export `.md` file. Share is the header icon.
+/// Preview of notes plus the schema guide. Share is the header icon.
 class MarkdownPreviewSheet extends StatelessWidget {
   const MarkdownPreviewSheet({
     super.key,
@@ -73,10 +73,7 @@ class MarkdownPreviewSheet extends StatelessWidget {
           ),
           const Divider(height: 1, color: ShelfColors.hairline),
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),
-              child: ShelfMarkdownBody(data: markdown),
-            ),
+            child: ShelfMarkdownBody(data: markdown),
           ),
         ],
       ),
@@ -93,40 +90,50 @@ class ShelfMarkdownBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final lines = data.replaceAll('\r\n', '\n').split('\n');
-    final children = <Widget>[];
-    for (final raw in lines) {
-      final line = raw.trimRight();
-      if (line.trim().isEmpty) {
-        children.add(const SizedBox(height: 10));
-        continue;
-      }
-      if (line.startsWith('### ')) {
-        children.add(_heading(line.substring(4), 15));
-      } else if (line.startsWith('## ')) {
-        children.add(_heading(line.substring(3), 18));
-      } else if (line.startsWith('# ')) {
-        children.add(_heading(line.substring(2), 22));
-      } else if (line.startsWith('- ') || line.startsWith('* ')) {
-        children.add(_bullet(line.substring(2)));
-      } else {
-        children.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Text.rich(
-              TextSpan(children: _spans(line.trim())),
-              style: const TextStyle(
-                fontSize: 15.5,
-                height: 1.45,
-                color: ShelfColors.ink,
-              ),
-            ),
-          ),
-        );
-      }
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),
+      itemCount: lines.length,
+      itemBuilder: (context, index) => _line(lines[index]),
+    );
+  }
+
+  Widget _line(String raw) {
+    final line = raw.trimRight();
+    if (line.trim().isEmpty) {
+      return const SizedBox(height: 10);
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: children,
+    final trimmed = line.trimLeft();
+    if (trimmed.startsWith(r'\#') ||
+        trimmed.startsWith(r'\- ') ||
+        trimmed.startsWith(r'\* ')) {
+      return _paragraph(line);
+    }
+    if (line.startsWith('### ')) {
+      return _heading(line.substring(4), 15);
+    }
+    if (line.startsWith('## ')) {
+      return _heading(line.substring(3), 18);
+    }
+    if (line.startsWith('# ')) {
+      return _heading(line.substring(2), 22);
+    }
+    if (line.startsWith('- ') || line.startsWith('* ')) {
+      return _bullet(line.substring(2));
+    }
+    return _paragraph(line);
+  }
+
+  Widget _paragraph(String line) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text.rich(
+        TextSpan(children: _spans(line.trim())),
+        style: const TextStyle(
+          fontSize: 15.5,
+          height: 1.45,
+          color: ShelfColors.ink,
+        ),
+      ),
     );
   }
 
@@ -171,40 +178,65 @@ class ShelfMarkdownBody extends StatelessWidget {
     );
   }
 
-  static final _inline = RegExp(r'\*\*(.+?)\*\*|`([^`]+)`');
+  static const _codeStyle = TextStyle(
+    fontFamily: 'monospace',
+    fontSize: 13.5,
+    backgroundColor: Color(0xFFF5F5F4),
+  );
 
   static List<InlineSpan> _spans(String input) {
     final spans = <InlineSpan>[];
-    var start = 0;
-    for (final match in _inline.allMatches(input)) {
-      if (match.start > start) {
-        spans.add(TextSpan(text: input.substring(start, match.start)));
+    final plain = StringBuffer();
+    void flush() {
+      if (plain.isEmpty) {
+        return;
       }
-      final bold = match.group(1);
-      if (bold != null) {
-        spans.add(
-          TextSpan(
-            text: bold,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-        );
-      } else {
-        spans.add(
-          TextSpan(
-            text: match.group(2),
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 13.5,
-              backgroundColor: Color(0xFFF5F5F4),
+      spans.add(TextSpan(text: plain.toString()));
+      plain.clear();
+    }
+
+    var i = 0;
+    while (i < input.length) {
+      if (input.codeUnitAt(i) == 0x5c && i + 1 < input.length) {
+        final next = input[i + 1];
+        if (next == '\\' || next == '*' || next == '`' || next == '#' || next == '-') {
+          plain.write(next);
+          i += 2;
+          continue;
+        }
+      }
+      if (input.startsWith('**', i)) {
+        final end = input.indexOf('**', i + 2);
+        if (end != -1) {
+          flush();
+          spans.add(
+            TextSpan(
+              text: input.substring(i + 2, end),
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
-          ),
-        );
+          );
+          i = end + 2;
+          continue;
+        }
       }
-      start = match.end;
+      if (input.startsWith('`', i)) {
+        final end = input.indexOf('`', i + 1);
+        if (end != -1) {
+          flush();
+          spans.add(
+            TextSpan(
+              text: input.substring(i + 1, end),
+              style: _codeStyle,
+            ),
+          );
+          i = end + 1;
+          continue;
+        }
+      }
+      plain.write(input[i]);
+      i++;
     }
-    if (start < input.length) {
-      spans.add(TextSpan(text: input.substring(start)));
-    }
+    flush();
     if (spans.isEmpty) {
       spans.add(const TextSpan(text: ''));
     }

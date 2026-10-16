@@ -327,7 +327,7 @@ void main() {
       final context = tester.element(find.byType(Scaffold));
       MarkdownPreviewSheet.show(
         context,
-        fileName: 'Design-Language-notes-schema.md',
+        fileName: 'Design Language',
         markdown: schema,
       );
       await tester.pump();

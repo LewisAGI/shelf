@@ -367,8 +367,7 @@ class AskAboutNoteButton extends StatelessWidget {
       }
       final share = await MarkdownPreviewSheet.show(
         context,
-        fileName:
-            '${NotesExport.safeFileStem(exportDocument.title)}-note-schema.md',
+        fileName: exportDocument.title,
         markdown: NotesExport.previewMarkdown(
           documentTitle: exportDocument.title,
           notes: [exportNote],

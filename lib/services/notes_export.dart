@@ -119,6 +119,10 @@ class NotesExport {
 
   /// Readable notes, then the schema guide. The preview sheet shows this
   /// before share; the `.md` file on disk stays the schema companion.
+  ///
+  /// Note text is escaped so a comment or quote is shown literally: a line
+  /// that starts with `# ` or `- `, and quotes that contain `**` or newlines,
+  /// are not treated as markdown.
   static String previewMarkdown({
     required String documentTitle,
     required List<Note> notes,
@@ -126,39 +130,59 @@ class NotesExport {
     List<PdfSection> outline = const [],
   }) {
     final buffer = StringBuffer()
-      ..writeln('# $documentTitle')
+      ..writeln('# ${_oneLine(documentTitle)}')
       ..writeln();
-    if (notes.isEmpty) {
-      buffer
-        ..writeln('No notes on this book.')
-        ..writeln();
-    }
     for (final note in _sorted(notes)) {
       final label = labelById(note.colorLabelId);
       final headings = PdfSectionResolver.forNote(note, outline);
       final quote = note.selection?.text.trim() ?? '';
       final comment = note.text.trim();
-      buffer.writeln('## p. ${note.page} · ${label.name}');
+      buffer.writeln('## p. ${note.page} · ${_oneLine(label.name)}');
       if (headings.heading != null) {
         buffer.writeln();
-        buffer.writeln(headings.heading);
+        buffer.writeln(escapePreviewText(headings.heading!));
       }
       if (headings.subheading != null) {
         buffer.writeln();
-        buffer.writeln(headings.subheading);
+        buffer.writeln(escapePreviewText(headings.subheading!));
       }
       buffer.writeln();
       if (quote.isNotEmpty) {
         buffer
-          ..writeln('**$quote**')
+          ..writeln(escapePreviewText(quote))
           ..writeln();
       }
       buffer
-        ..writeln(comment.isEmpty ? 'Empty note' : comment)
+        ..writeln(comment.isEmpty ? 'Empty note' : escapePreviewText(comment))
         ..writeln();
     }
     buffer.write(schemaMarkdown(documentTitle: documentTitle));
     return buffer.toString();
+  }
+
+  /// Escapes note text for [ShelfMarkdownBody] so it renders as written.
+  static String escapePreviewText(String value) {
+    final buffer = StringBuffer();
+    final lines = value.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      if (i > 0) {
+        buffer.write('\n');
+      }
+      var line = lines[i].replaceAll(r'\', r'\\').replaceAll('*', r'\*').replaceAll('`', r'\`');
+      final trimmed = line.trimLeft();
+      final indent = line.substring(0, line.length - trimmed.length);
+      if (trimmed.startsWith('#') ||
+          trimmed.startsWith('- ') ||
+          trimmed.startsWith('* ')) {
+        line = '$indent\\$trimmed';
+      }
+      buffer.write(line);
+    }
+    return buffer.toString();
+  }
+
+  static String _oneLine(String value) {
+    return escapePreviewText(value).replaceAll('\n', ' ');
   }
 
   static String schemaMarkdown({String documentTitle = 'this book'}) {
@@ -209,14 +233,14 @@ emitted as JSON null — do not invent a chapter.
     DateTime? exportedAt,
     List<PdfSection> outline = const [],
   }) async {
-    final dir = directory ?? Directory.systemTemp.createTempSync('shelf-export-');
+    final dir = directory ?? await Directory.systemTemp.createTemp('shelf-export-');
     if (!dir.existsSync()) {
-      dir.createSync(recursive: true);
+      await dir.create(recursive: true);
     }
     final stem = safeFileStem(document.title);
     final jsonFile = File('${dir.path}/$stem-notes.json');
     final mdFile = File('${dir.path}/$stem-notes-schema.md');
-    jsonFile.writeAsStringSync(
+    await jsonFile.writeAsString(
       jsonString(
         document: document,
         notes: notes,
@@ -225,7 +249,7 @@ emitted as JSON null — do not invent a chapter.
         outline: outline,
       ),
     );
-    mdFile.writeAsStringSync(schemaMarkdown(documentTitle: document.title));
+    await mdFile.writeAsString(schemaMarkdown(documentTitle: document.title));
     return [jsonFile, mdFile];
   }
 
@@ -242,14 +266,14 @@ emitted as JSON null — do not invent a chapter.
     List<int>? pdfBytes,
     File? pdfFile,
   }) async {
-    final dir = directory ?? Directory.systemTemp.createTempSync('shelf-export-');
+    final dir = directory ?? await Directory.systemTemp.createTemp('shelf-export-');
     if (!dir.existsSync()) {
-      dir.createSync(recursive: true);
+      await dir.create(recursive: true);
     }
     final stem = safeFileStem(document.title);
     final files = <File>[];
     final jsonFile = File('${dir.path}/$stem-note.json');
-    jsonFile.writeAsStringSync(
+    await jsonFile.writeAsString(
       jsonString(
         document: document,
         notes: [note],
@@ -261,7 +285,7 @@ emitted as JSON null — do not invent a chapter.
     files.add(jsonFile);
     if (kind.includeGuide) {
       final mdFile = File('${dir.path}/$stem-note-schema.md');
-      mdFile.writeAsStringSync(schemaMarkdown(documentTitle: document.title));
+      await mdFile.writeAsString(schemaMarkdown(documentTitle: document.title));
       files.add(mdFile);
     }
     if (kind.includePdf) {

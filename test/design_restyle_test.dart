@@ -25,6 +25,7 @@ import 'package:shelf/widgets/selection_comment_bar.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'support/fake_ai_client.dart';
+import 'support/flush_export.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -156,7 +157,11 @@ void main() {
 
     expect(find.byType(SnackBar), findsNothing);
     expect(find.byKey(const Key('markdown-preview-sheet')), findsOneWidget);
-    expect(find.text('Notes-on-method-notes-schema.md'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.byKey(const Key('markdown-preview-filename'))).data,
+      'Notes on method',
+    );
+    expect(find.text('Notes-on-method-notes-schema.md'), findsNothing);
     expect(find.textContaining('Come back to this diagram.'), findsOneWidget);
     expect(find.textContaining('Check the later chapter.'), findsOneWidget);
     expect(find.textContaining('Shelf notes export schema'), findsOneWidget);
@@ -164,9 +169,7 @@ void main() {
     expect(shared, isEmpty);
 
     await tester.tap(find.byKey(const Key('markdown-preview-share')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-    await tester.pump();
+    await flushExport(tester, () => shared.length >= 2);
 
     expect(shared, hasLength(2));
     expect(shared.any((path) => path.endsWith('-notes.json')), isTrue);
@@ -189,12 +192,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     await tester.tap(find.byKey(const Key('markdown-preview-close')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(milliseconds: 400));
-    });
-    await tester.pump();
+    await flushExport(tester, () => shared);
     expect(shared, isFalse);
     expect(ExportShare.lastSharePositionOrigin, isNull);
     expect(find.byKey(const Key('markdown-preview-sheet')), findsNothing);
@@ -528,5 +526,7 @@ void main() {
     expect(find.textContaining('Week plan'), findsOneWidget);
     expect(find.textContaining('Bananas × 5'), findsOneWidget);
     expect(find.textContaining('Food safety'), findsOneWidget);
+    final list = tester.widget<ListView>(find.byType(ListView));
+    expect(list.childrenDelegate, isA<SliverChildBuilderDelegate>());
   });
 }
